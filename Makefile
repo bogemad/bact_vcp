@@ -7,10 +7,10 @@ clean:
 .SECONDARY:
 
 make_smalt:
-	cd smalt && ./configure && $(MAKE)
+	cd bin/smalt && ./configure && $(MAKE)
 
 make_ngsutils:
-	cd ngsutils && $(MAKE)
+	cd bin/ngsutils && $(MAKE)
 
 VENV = .venv
 export VIRTUAL_ENV := $(abspath ${VENV})
