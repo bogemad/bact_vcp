@@ -20,7 +20,7 @@ def cd(newdir):
 
 def run_process(cmd):
 	output = subprocess.check_output(cmd, stderr = subprocess.STDOUT)
-	print(output)
+	print output
 
 
 def run_piped_shell_process(cmd):
@@ -39,13 +39,13 @@ def get_read_type(sample_key):
 			elif si_operator == "interleaved":
 				split = False
 				return paired, split
-			print("Error: %s has no si_operator. Can't work out if paired reads are split or interleaved." % sample_key)
+			print "Error: %s has no si_operator. Can't work out if paired reads are split or interleaved." % sample_key
 			sys.exit(1)
 		elif pup_operator == "unpaired":
 			paired = False
 			split = False
 			return paired, split
-	print("Error: %s has no pup_operator. Can't work out if reads are paired or unpaired." % sample_key)
+	print "Error: %s has no pup_operator. Can't work out if reads are paired or unpaired." % sample_key
 	sys.exit(1)
 
 
@@ -60,15 +60,15 @@ def interleaved(base_path,sample_key,temp_dir,trimo_path):
 		unpaired_output1 = infile.next().strip()
 		unpaired_output2 = infile.next().strip()
 	fastqutils_path = os.path.join(base_path,"ngsutils-ngsutils-0.5.9/bin/fastqutils")
-	print("Importing %s: Interleaved paired reads" % sample_name)
+	print "Importing %s: Interleaved paired reads" % sample_name 
 	trim_log = "%s.trimlog" % sample_name
 	ca_trim_log = "%s.ca_trimlog" % sample_name
 	reads1 = "%s.1.fastq" % sample_name
 	reads2 = "%s.2.fastq" % sample_name
 	with cd(temp_dir):
-		print("Spliting %s reads file" % sample_name)
+		print "Spliting %s reads file" % sample_name 
 		run_process([fastqutils_path,"unmerge",reads,sample_name])
-		print("Trimming %s reads" % sample_name)
+		print "Trimming %s reads" % sample_name 
 		cut_adapt_out1 = "ca_%s" % reads1
 		cut_adapt_out2 = "ca_%s" % reads2
 		run_piped_shell_process("%s -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTGACGCTGCCGACGA -g GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTCCGAGCCCACGAGAC -o %s -p %s %s %s > %s" % (cut_adapt_path, cut_adapt_out1, cut_adapt_out2, reads1, read2, ca_trim_log))
@@ -85,11 +85,11 @@ def unpaired(sample_key,temp_dir,trimo_path):
 		sample_name = infile.next().strip()
 		reads = infile.next().strip()
 		output = infile.next().strip()
-	print("Importing %s: Unpaired reads" % sample_name)
+	print "Importing %s: Unpaired reads" % sample_name 
 	trim_log = "%s.trimlog" % sample_name
 	ca_trim_log = "%s.ca_trimlog" % sample_name
 	with cd(temp_dir):
-		print("Trimming %s reads" % sample_name)
+		print "Trimming %s reads" % sample_name
 		cut_adapt_out = "ca_%s" % reads
 		run_piped_shell_process("%s -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTGACGCTGCCGACGA -g GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTCCGAGCCCACGAGAC -o %s %s > %s" % (cut_adapt_path, cut_adapt_out, reads, ca_trim_log))
 		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",trimo_path,"SE","-phred33","-trimlog",trim_log,reads,output,"LEADING:20","TRAILING:20","SLIDINGWINDOW:4:15","MINLEN:70"])
@@ -108,11 +108,11 @@ def split(sample_key,temp_dir):
 		paired_output2 = infile.next().strip()
 		unpaired_output1 = infile.next().strip()
 		unpaired_output2 = infile.next().strip()
-	print("Importing %s: Split paired reads" % sample_name)
+	print "Importing %s: Split paired reads" % sample_name
 	trim_log = "%s.trimlog" % sample_name
 	ca_trim_log = "%s.ca_trimlog" % sample_name
 	with cd(temp_dir):
-		print("Trimming %s reads" % sample_name)
+		print "Trimming %s reads" % sample_name
 		cut_adapt_out1 = "ca_%s" % reads1
 		cut_adapt_out2 = "ca_%s" % reads2
 		run_piped_shell_process("%s -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTGACGCTGCCGACGA -g GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTCCGAGCCCACGAGAC -o %s -p %s %s %s > %s" % (cut_adapt_path, cut_adapt_out1, cut_adapt_out2, reads1, read2, ca_trim_log))
@@ -129,5 +129,5 @@ elif paired == True and split == False:
 elif paired = False and split == False:
 	unpaired(unpaired_list,temp_dir)
 else:
-	print("Error: %s has false paired and true split status, shouldn't be possible!" % sample_key)
+	print "Error: %s has false paired and true split status, shouldn't be possible!" % sample_key
 	sys.exit(1)

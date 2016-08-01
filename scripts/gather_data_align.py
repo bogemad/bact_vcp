@@ -17,7 +17,7 @@ def cd(newdir):
 
 def run_process(cmd):
 	output = subprocess.check_output(cmd, stderr = subprocess.STDOUT)
-	print(output)
+	print output
 
 
 def get_paired_unpaired(sample_key):
@@ -29,7 +29,7 @@ def get_paired_unpaired(sample_key):
 		elif pup_operator == "unpaired":
 			paired = False
 			return paired
-	print("Error: %s has no pup_operator. Can't work out if reads are paired or unpaired.")
+	print "Error: %s has no pup_operator. Can't work out if reads are paired or unpaired."
 	sys.exit(1)
 
 
@@ -52,7 +52,7 @@ def get_unpaired_dirs_and_paths(base_path,sample_key):
 
 def make_sample_outdir(outdir,sample_name):
 	if os.path.isdir(os.path.join(outdir,sample_name)) == True:
-		print("%s directory already exists. Two samples may have identical names. Check your sample_names and retry. Exiting..." % sample_name)
+		print "%s directory already exists. Two samples may have identical names. Check your sample_names and retry. Exiting..." % sample_name
 		sys.exit(1)
 	os.mkdir(os.path.join(outdir,sample_name))
 

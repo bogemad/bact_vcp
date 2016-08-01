@@ -19,7 +19,7 @@ def cd(newdir):
 
 def run_process(cmd):
 	output = subprocess.check_output(cmd, stderr = subprocess.STDOUT)
-	print(output)
+	print output 
 
 
 def realign_indels(base_path,sample_name,temp_dir,outdir):

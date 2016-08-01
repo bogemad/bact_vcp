@@ -19,12 +19,12 @@ def cd(newdir):
 
 def run_process(cmd):
 	output = subprocess.check_output(cmd, stderr = subprocess.STDOUT)
-	print(output)
+	print output
 
 
 def run_shell_process(cmd):
 	output = subprocess.check_output(cmd, stderr = subprocess.STDOUT, shell=True)
-	print(output)
+	print output
 
 
 def call_variants(base_path,sample_name,temp_dir,outdir):

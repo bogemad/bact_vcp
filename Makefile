@@ -1,24 +1,24 @@
-all: make_smalt make_samtools ${VENV} python-reqs
+all: make_smalt make_ngsutils ${VENV} python-reqs 
 
 clean: 
-	rm -rf smalt samtools
+
 
 .PHONY: all clean
 .SECONDARY:
 
-make_smalt: smalt/configure
+make_smalt:
 	cd smalt && ./configure && $(MAKE)
 
-make_samtools: samtools/configure
-	cd samtools && ./configure && $(MAKE)
+make_ngsutils:
+	cd ngsutils && $(MAKE)
 
 VENV = .venv
 export VIRTUAL_ENV := $(abspath ${VENV})
 export PATH := ${VIRTUAL_ENV}/bin:${PATH}
 
-${VENV}:
-	python3 -m venv $@
+${VENV}: 
+	python2 -m virtualenv $@
 
-python-reqs: requirements.pip | ${VENV}
-	pip install --upgrade -r requirements.pip
+python-reqs: scripts/requirements.pip | ${VENV}
+	pip install --upgrade -r scripts/requirements.pip
 

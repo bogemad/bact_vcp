@@ -1,11 +1,11 @@
 #!/bin/sh
 
 if [ "$PYTHON" = "" ]; then
-    PYTHON="python"
+    PYTHON="python2"
 fi
 
 # Use embedded virtualenv
-REAL=`python -c 'import os,sys;print os.path.realpath(sys.argv[1])' "$0"`
+REAL=`$PYTHON -c 'import os,sys;print os.path.realpath(sys.argv[1])' "$0"`
 VIRTUALENV="$PYTHON $(dirname $REAL)/support/virtualenv.py"
 
 if [ ! -e venv ]; then 
