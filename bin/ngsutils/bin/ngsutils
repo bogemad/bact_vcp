@@ -1,0 +1,115 @@
+#!/bin/sh
+REAL=`python -c 'import os,sys;print os.path.realpath(sys.argv[1])' "$0"`
+DIR=`dirname "$REAL"`/../
+SUBDIR=$(basename $0 | sed -e 's/utils//')
+
+usage() {
+    echo "Usage: $(basename $0) COMMAND"
+    echo ""
+    cat $DIR/ngsutils/$SUBDIR/README
+    echo ""
+    echo "Run '$(basename $0) help CMD' for more information about a specific command"
+    echo -n "ngsutils "
+    
+    cd $DIR
+    GV="$(git show master --format='%h %ai' | head -n 1)"
+    VERSION=$(echo "$GV" | awk '{print $1}')
+    echo "$(cat VERSION | sed -e 's/\n//')-$VERSION"
+
+    exit 1
+}
+
+if [ "$1" = "" ]; then
+    usage
+fi
+
+
+. "$DIR"/venv/bin/activate
+export PYTHONPATH=$PYTHONPATH:"$DIR"
+
+if [ "$SUBDIR" = "ngs" ]; then
+    if [ -e "$DIR"/.git ]; then
+        if [ "$1" = "update" ]; then
+            cd "$DIR"
+    
+            echo "Updating from current branch"
+            git pull 
+
+            exit 0
+        elif [ "$1" = "switch" ]; then
+            cd "$DIR"
+    
+            if [ "$2" != "" ]; then
+                echo "Switching to branch: $2"
+                git fetch origin
+                if [ "$(git branch -l | grep "$2")" = "" ]; then
+                    git branch -t $2 origin/$2
+                fi
+                git checkout $2
+                git pull
+            else
+                git branch -a
+            fi
+            exit 0
+        fi
+    fi
+fi
+
+
+if [ "$1" = "help" ]; then
+    if [ "$2" = "" ]; then
+        usage
+    fi
+    
+    action=$2.py
+    
+    if [ ! -e "$DIR"/ngsutils/$SUBDIR/$action ]; then
+        action=$2.sh
+        if [ ! -e "$DIR"/ngsutils/$SUBDIR/$action ]; then
+            echo "Unknown command '$2'"
+            exit 1
+        fi
+    fi
+    "$DIR"/ngsutils/$SUBDIR/$action -h
+
+elif [ "$1" = "version" ]; then
+    cd $DIR
+    GV="$(git show master --format='%h %ai' | head -n 1)"
+    VERSION=$(echo "$GV" | awk '{print $1}')
+    echo "$(cat VERSION | sed -e 's/\n//')-$VERSION"
+
+elif [ "$1" = "profile" ]; then
+    shift
+    action=$1.py
+
+    if [ ! -e "$DIR"/ngsutils/$SUBDIR/$action ]; then
+        action=$1.sh
+        if [ ! -e "$DIR"/ngsutils/$SUBDIR/$action ]; then
+            echo "Unknown command '$1'"
+            exit 1
+        fi
+    fi
+    shift
+
+#    i=0
+#    for arg in "$@"; do
+#        ARGS[$i]="$arg"
+#        ((++i))
+#    done
+    
+    echo "Saving profile information to profile.output" 1>&2
+    exec python -m cProfile -o profile.output "$DIR"/ngsutils/$SUBDIR/$action "$@"
+else
+    action=$1.py
+
+    if [ ! -e "$DIR"/ngsutils/$SUBDIR/$action ]; then
+        action=$1.sh
+        if [ ! -e "$DIR"/ngsutils/$SUBDIR/$action ]; then
+            echo "Unknown command '$1'"
+            exit 1
+        fi
+    fi
+    shift
+
+    exec "$DIR"/ngsutils/$SUBDIR/$action "$@"
+fi
