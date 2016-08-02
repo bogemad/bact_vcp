@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os, subprocess
 from contextlib import contextmanager
 
@@ -38,10 +40,6 @@ def call_variants(base_path,sample_name,temp_dir,outdir):
 	filtered_indels = "%s.filtered_indels.vcf" % sample_name
 	with cd(temp_dir):
 		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","reference.fa","-I",preprocessed_reads,"--genotyping_mode","DISCOVERY","-glm","BOTH","-stand_call_conf","30","-stand_emit_conf","10","-o",raw_variants,"--sample_ploidy","1"])
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","SelectVariants","-R","reference.fa","-V",raw_variants,"-selectType","SNP","-o",raw_snps])
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","SelectVariants","-R","reference.fa","-V",raw_variants,"-selectType","SNP","-o",raw_indels])
-		run_shell_process('java -Xmx2g -XX:+UseSerialGC -jar %s -T VariantFiltration -R reference.fa -V %s --filterExpression "QD < 3.0" --filterName "low_qual_by_depth" --filterExpression "FS > 13.5" --filterName "strand_bias" --filterExpression "DP < 10" --filterName "low_depth" --filterExpression "MQRankSum < -12.5" --filterName "MQRankSum" --filterExpression "ReadPosRankSum < -8.0" --filterName "ReadPosRankSum" -o %s' % (gatk_path,raw_snps,filtered_snps))
-		run_shell_process('java -Xmx2g -XX:+UseSerialGC -jar %s -T VariantFiltration -R reference.fa -V %s --filterExpression "QD < 3.0" --filterName "low_qual_by_depth" --filterExpression "FS > 200.0" --filterName "strand_bias" --filterExpression "ReadPosRankSum < -20.0" --filterName "ReadPosRankSum" --filterExpression "DP < 10" --filterName "low_depth" -o %s' % (gatk_path,raw_indels,filtered_indels))
 		shutil.copy(filtered_snps,os.path.join(outdir,sample_name))
 		shutil.copy(filtered_indels,os.path.join(outdir,sample_name))
 

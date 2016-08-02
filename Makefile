@@ -1,4 +1,4 @@
-all: ${VENV} python-reqs 
+all: bin/smalt/src/smalt bin/ngsutils/venv/bin/activate ${VENV} python-reqs ${KEYS}/%.txt ${RESULTS}/%.trimmed.fastq.gz ${RESULTS}/%.raw_alignment.bam ${RESULTS}/%.dedup_reads.bam ${RESULTS}/%.gatk_preprocessed_reads.bam ${RESULTS}/%.raw_variants.vcf ${RESULTS}/%.annotated_snps.vcf ${RESULTS}/%.annotated_indels.vcf
 
 clean: 
 

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys, os, shutil, subprocess
 from contextlib import contextmanager
 
@@ -60,7 +62,7 @@ def make_sample_outdir(outdir,sample_name):
 def sam_to_bam(sam,paired,sample_name):
 	script_path = os.path.dirname(os.path.realpath(__file__))
 	picard_path = os.path.join(script_path,"picard-tools/picard.jar")
-	bam = "%s.raw_alignment.bam" % sample_name
+	bam = sys.argv[2]
 	bam_arg = "O=%s" % bam
 	if paired == True:
 		samfile_args = ["I=%s" % s for s in sam]
