@@ -1,8 +1,8 @@
 import os, subprocess
 from contextlib import contextmanager
 
-base_path = os.path.dirname(os.path.realpath(__file__))
-sample_key = os.path.join(base_path,"keys",os.path.basename(sys.argv[1]))
+base_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sample_key = sys.argv[1]
 outdir = os.path.join(base_path,"results")
 temp_dir = os.path.join(base_path,"intermediate_files")
 trimo_path = os.path.join(base_path,"Trimmomatic-0.36/trimmomatic-0.36.jar")

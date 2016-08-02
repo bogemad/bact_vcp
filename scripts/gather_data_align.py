@@ -2,7 +2,7 @@ import sys, os, shutil, subprocess
 from contextlib import contextmanager
 
 base_path = os.path.dirname(os.path.realpath(__file__))
-sample_key = os.path.join(base_path,"keys",os.path.basename(sys.argv[1]))
+sample_key = sys.argv[1]
 sample_name, ext = os.path.splitext(os.path.basename(sample_key))
 
 @contextmanager
