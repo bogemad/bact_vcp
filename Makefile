@@ -23,11 +23,14 @@ bin/ngsutils-ngsutils-0.5.9/venv/bin/activate:
 	cd bin && tar -xvf ngsutils-0.5.9.tar.gz
 	cd bin/ngsutils-ngsutils-0.5.9 && $(MAKE)
 
-${VENV}: bin/smalt-0.7.6/src/smalt bin/ngsutils/venv/bin/activate
+${VENV}: bin/smalt-0.7.6/src/smalt bin/ngsutils-ngsutils-0.5.9/venv/bin/activate
 	python2 -m virtualenv $@
 
 python-reqs: scripts/requirements.pip | ${VENV}
 	pip install --upgrade -r scripts/requirements.pip
+
+${KEYS} ${RESULTS} ${INT_FILES}:
+	mkdir $@
 
 
 make_keyfiles: ${VENV} python-reqs | ${KEYS} ${RESULTS} ${INT_FILES}

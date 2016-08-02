@@ -7,9 +7,9 @@
 "#DNA_preparation_library_identifier: Used to identify the library prep. E.g if you have multiple libaries generated from the same sample, you would include a single sample name but unique library names. If a single library has been sequenced multiple times then the same library and sample names must be used for each fastq generated.",,,,
 "#See http://gatkforums.broadinstitute.org/gatk/discussion/6472/read-groups for further explanation of the Read group identifier, Sample, Platform/technology, DNA preparation library identifier terms",,,,
 ,,,,
-[paired_interleaved],,,,
+[read_files],,,,
 #file_path,Read_group_identifier,Sample,Platform_technology,DNA_preparation_library_identifier
-# example: /home/bogemad/drive/data/ecoli/ST73_reads/Ecoli_2010_13.lf.fastq,HA682ADXX.1,Ecoli_2010_13,ILLUMINA,lib_2016_08_01
+/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_13.lf.fastq,HA682ADXX.1,Ecoli_2010_13,ILLUMINA,lib_2016_08_01
 ,,,,
 ,,,,
 ,,,,
@@ -20,19 +20,10 @@
 ,,,,
 ,,,,
 ,,,,
-,,,,
-,,,,
-,,,,
-[paired_separate_files],,,,
-#file_path,Read_group_identifier,Sample,Platform/technology,DNA_preparation_library_identifier
-,,,,
-,,,,
-,,,,
-[unpaired],,,,
-#file_path,Read_group_identifier,Sample,Platform/technology,DNA_preparation_library_identifier
 ,,,,
 ,,,,
 ,,,,
 [reference_fasta],,,,
-,,,,
+/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/parsnp/references/ST73_genomes/Escherichia_coli_CFT073_GCA_000007445.1.fna,,,,
 [snpEff_reference_database],,,,
+GCA_000007445.1.29,,,,

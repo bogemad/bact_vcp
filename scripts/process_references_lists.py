@@ -4,7 +4,7 @@ import os, sys, shutil, subprocess
 from contextlib import contextmanager
 
 
-base_path = os.path.dirname(os.path.dirname(sys.argv[1]))
+base_path = os.path.dirname(os.path.dirname(sys.argv[0]))
 
 
 @contextmanager
@@ -36,22 +36,23 @@ def import_file_list(file_list):
 	ref_db = []
 	with open(file_list) as file_handle:
 		for line in file_handle:
-			if line.startswith("#") or line == "\n":
+			if line.startswith("#") or line.startswith(",") or line == "\n":
 				continue
-			elif line == "[read_data]\n":
+			elif "[read_data]" in line:
 				print "Importing paired interleaved files..."
 				import_tuple = (True,False,False)
 				continue
-			elif line == "[reference_fasta]\n":
+			elif "[reference_fasta]" in line:
 				print "Importing reference fasta..."
 				import_tuple = (False,True,False)
 				continue
-			elif line == "[snpEff_reference_database]\n":
+			elif "[snpEff_reference_database]" in line:
 				print "Importing snpEff reference database..."
 				import_tuple = (False,False,True)
 				continue
 			elif import_tuple == (True,False,False):
-				reads_list.append(line.strip())
+				data = line.rstrip().split(',')
+				reads_list.append((data[0],data[1],data[2],data[3],data[4]))
 			elif import_tuple == (False,True,False):
 				ref_fasta = (line.split(',')[0])
 			elif import_tuple == (False,False,True):
@@ -60,7 +61,7 @@ def import_file_list(file_list):
 
 
 def copy_reference(base_path,ref_fasta,temp_dir,outdir):
-	picard_path = os.path.join(base_path,"picard-tools/picard.jar")
+	picard_path = os.path.join(base_path, "bin/picard-tools/picard.jar")
 	print "Importing reference sequence: %s" % os.path.basename(ref_fasta)
 	ref_path = os.path.join(temp_dir,"reference.fa")
 	shutil.copyfile(ref_fasta,os.path.join(temp_dir,"reference.fa"))
@@ -74,16 +75,21 @@ def copy_ref_db_path(ref_db,temp_dir):
 		outfile.write(ref_db)
 
 
-def output_keylists(reads_list):
+def output_keylists(base_path,reads_list):
 	for reads in reads_list:
-		sample_name, file_ext = os.path.splitext(os.path.basename(reads))
+		reads_file = reads[0]
+		sample_name, file_ext = os.path.splitext(os.path.basename(reads_file))
 		sample_outfile = "%s.txt" % sample_name
+		id = reads[1]
+		sm = reads[2]
+		pl = reads[3]
+		lb = reads[4]
 		paired_output1 = "%s.1.paired_trimmed.fastq" % sample_name
 		paired_output2 = "%s.2.paired_trimmed.fastq" % sample_name
 		unpaired_output1 = "%s.1.unpaired_trimmed.fastq" % sample_name
 		unpaired_output2 = "%s.2.unpaired_trimmed.fastq" % sample_name
-		with open(sys.argv[2],'w') as outfile:
-			outfile.write("%s\n%s\n%s\n%s\n%s\n%s\n" % (sample_name,reads,paired_output1,paired_output2,unpaired_output1,unpaired_output2))
+		with open(os.path.join(base_path,"keys",sample_outfile,'w')) as outfile:
+			outfile.write("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n" % (sample_name,reads_file,id,sm,pl,lb,paired_output1,paired_output2,unpaired_output1,unpaired_output2))
 
 
 
@@ -91,5 +97,5 @@ outdir, temp_dir, file_list = setup_directories_and_inputs(base_path)
 reads_list, ref_fasta, ref_db = import_file_list(file_list)
 null_output = copy_reference(base_path,ref_fasta,temp_dir,outdir)
 null_output = copy_ref_db_path(ref_db,temp_dir)
-output_keylists(reads_list)
+output_keylists(base_path,reads_list)
 
