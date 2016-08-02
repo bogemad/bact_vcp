@@ -82,7 +82,7 @@ def output_keylists(reads_list):
 		paired_output2 = "%s.2.paired_trimmed.fastq" % sample_name
 		unpaired_output1 = "%s.1.unpaired_trimmed.fastq" % sample_name
 		unpaired_output2 = "%s.2.unpaired_trimmed.fastq" % sample_name
-		with open(sys.argv[2]),'w') as outfile:
+		with open(sys.argv[2],'w') as outfile:
 			outfile.write("%s\n%s\n%s\n%s\n%s\n%s\n" % (sample_name,reads,paired_output1,paired_output2,unpaired_output1,unpaired_output2))
 
 
