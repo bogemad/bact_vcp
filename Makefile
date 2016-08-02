@@ -1,9 +1,9 @@
-all: bin/smalt/src/smalt bin/ngsutils/venv/bin/activate ${VENV} python-reqs ${KEYS}/%.txt ${RESULTS}/%.trimmed.fastq.gz ${RESULTS}/%.raw_alignment.bam ${RESULTS}/%.dedup_reads.bam ${RESULTS}/%.gatk_preprocessed_reads.bam ${RESULTS}/%.raw_variants.vcf ${RESULTS}/%.annotated_snps.vcf ${RESULTS}/%.annotated_indels.vcf
+all: bin/smalt/src/smalt bin/ngsutils/venv/bin/activate mkdirs ${VENV} python-reqs make_keyfiles ${RESULTS}/%.trimmed.fastq.gz ${RESULTS}/%.raw_alignment.bam ${RESULTS}/%.dedup_reads.bam ${RESULTS}/%.gatk_preprocessed_reads.bam ${RESULTS}/%.raw_variants.vcf ${RESULTS}/%.annotated_snps.vcf ${RESULTS}/%.annotated_indels.vcf
 
 clean: 
 
 
-.PHONY: all clean
+.PHONY: all clean make_keyfiles
 .SECONDARY:
 
 bin/smalt/src/smalt:
@@ -11,6 +11,15 @@ bin/smalt/src/smalt:
 
 bin/ngsutils/venv/bin/activate:
 	cd bin/ngsutils && $(MAKE)
+
+export KEYS := $(abspath keys)
+export RESULTS := $(abspath results)
+export SCRIPTS := $(abspath scripts)
+
+mkdirs:
+	mkdir ${KEYS}
+	mkdir ${RESULTS}
+	mkdir intermediate_files
 
 VENV = .venv
 export VIRTUAL_ENV := $(abspath ${VENV})
@@ -23,14 +32,8 @@ ${VENV}:
 python-reqs: scripts/requirements.pip | ${VENV}
 	pip install --upgrade -r scripts/requirements.pip
 
-export KEYS := $(abspath keys)
-export RESULTS := $(abspath results)
-export SCRIPTS := $(abspath scripts)
 
-${KEYS}/%.txt: ${SCRIPTS}/process_references_lists.py input_data_list.csv
-	mkdir ${KEYS}
-	mkdir ${RESULTS}
-	mkdir intermediate_files
+make_keyfiles: ${SCRIPTS}/process_references_lists.py input_data_list.csv 
 	$^
 
 #maybe make target a compressed archive to simply for below rule
