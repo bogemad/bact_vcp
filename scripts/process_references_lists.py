@@ -66,6 +66,7 @@ def copy_reference(base_path,ref_fasta,temp_dir,outdir):
 	ref_path = os.path.join(temp_dir,"reference.fa")
 	shutil.copyfile(ref_fasta,os.path.join(temp_dir,"reference.fa"))
 	with cd(temp_dir):
+		if os.path.isfile("reference.dict"): os.remove("reference.dict")
 		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"CreateSequenceDictionary","REFERENCE=reference.fa","OUTPUT=reference.dict"])
 	shutil.copyfile(os.path.join(temp_dir,"reference.fa"),os.path.join(outdir,"reference.fa"))
 
@@ -77,19 +78,22 @@ def copy_ref_db_path(ref_db,temp_dir):
 
 def output_keylists(base_path,reads_list):
 	for reads in reads_list:
+		print reads
 		reads_file = reads[0]
-		sample_name, file_ext = os.path.splitext(os.path.basename(reads_file))
+		unzipped_name, file_ext = os.path.splitext(os.path.basename(reads_file))
+		sample_name, file_ext = os.path.splitext(os.path.basename(unzipped_name))
 		sample_outfile = "%s.txt" % sample_name
-		id = reads[1]
-		sm = reads[2]
-		pl = reads[3]
-		lb = reads[4]
+		rgid = reads[1]
+		rgsm = reads[2]
+		rgpl = reads[3]
+		rglb = reads[4]
 		paired_output1 = "%s.1.paired_trimmed.fastq" % sample_name
 		paired_output2 = "%s.2.paired_trimmed.fastq" % sample_name
 		unpaired_output1 = "%s.1.unpaired_trimmed.fastq" % sample_name
 		unpaired_output2 = "%s.2.unpaired_trimmed.fastq" % sample_name
-		with open(os.path.join(base_path,"keys",sample_outfile,'w')) as outfile:
-			outfile.write("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n" % (sample_name,reads_file,id,sm,pl,lb,paired_output1,paired_output2,unpaired_output1,unpaired_output2))
+		with open(os.path.join(base_path,"results",sample_outfile),'w') as outfile:
+			outfile.write("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n" % (sample_name,reads_file,rgid,rgsm,rgpl,rglb,paired_output1,paired_output2,unpaired_output1,unpaired_output2))
+
 
 
 

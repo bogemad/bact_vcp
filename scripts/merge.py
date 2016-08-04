@@ -1,7 +1,4 @@
-#!/usr/bin/env python
-
-import os, subprocess, gzip, sys, collections, re
-from contextlib import contextmanager
+import sys, os, gzip, collections, re
 from eta import ETA
 
 class FASTQRead(collections.namedtuple('FASTQRead', 'name comment seq qual')):
@@ -51,6 +48,7 @@ def fastq_read_file(fileobj):
     qual = fileobj.next().strip()
 
     return FASTQRead(name, comment, seq, qual)
+
 
 
 
@@ -240,37 +238,6 @@ class FASTQ(object):
 
 
 
-def unmerge(combined_fname, out_template, gz=False):
-    outs = []
-    if gz:
-        outs.append(gzip.open('%s.1.fastq.gz' % out_template, 'w'))
-    else:
-        outs.append(open('%s.1.fastq' % out_template, 'w'))
-
-    outidx = 1
-
-    last_read = None
-    fq = FASTQ(combined_fname)
-    for read in fq.fetch():
-        if last_read and last_read.name == read.name:
-            outidx += 1
-            if len(outs) < outidx:
-                if gz:
-                    outs.append(gzip.open('%s.%s.fastq.gz' % (out_template, outidx), 'w'))
-                else:
-                    outs.append(open('%s.%s.fastq' % (out_template, outidx), 'w'))
-            read.write(outs[outidx - 1])
-        else:
-            outidx = 1
-            read.write(outs[0])
-
-        last_read = read
-
-    fq.close()
-    for out in outs:
-        out.close()
-
-
 def generator_fetch(generators):
     while True:
         try:
@@ -279,7 +246,7 @@ def generator_fetch(generators):
             return
 
 
-def merge(fastqs, split_slashes=False, out=sys.stdout, quiet=False):
+def fastq_merge(fastqs, split_slashes=False, out=sys.stdout, quiet=False):
     for reads in generator_fetch([fq.fetch(quiet=quiet if i == 0 else False) for i, fq in enumerate(fastqs)]):
         cur_name = None
         for read in reads:
@@ -303,66 +270,29 @@ def merge(fastqs, split_slashes=False, out=sys.stdout, quiet=False):
             read.clone(name=name, comment=comment).write(out)
 
 
+def usage():
+    print __doc__
+    print """Usage: fastqutils merge {-slash} file1.fastq{.gz} file2.fastq{.gz} ...
 
-base_path = os.path.dirname(os.path.dirname(sys.argv[1]))
-sample_key = sys.argv[1]
-outdir = os.path.join(base_path,"results")
-temp_dir = os.path.join(base_path,"intermediate_files")
-trimo_path = os.path.join(base_path,"bin/Trimmomatic-0.36/trimmomatic-0.36.jar")
-cut_adapt_path = os.path.join(base_path, ".venv/bin/cutadapt")
+-slash    Split the read name at a '/' (Illumina paired format)
+"""
+    sys.exit(1)
 
-@contextmanager
-def cd(newdir):
-	prevdir = os.getcwd()
-	os.chdir(os.path.expanduser(newdir))
-	try:
-		yield
-	finally:
-		os.chdir(prevdir)
+if __name__ == '__main__':
+    fnames = []
+    split_slashes = False
+    for arg in sys.argv[1:]:
+        if arg == '-slash':
+            split_slashes = True
+        elif os.path.exists(arg):
+            fnames.append(arg)
 
+    if len(fnames) < 2:
+        usage()
 
-def run_process(cmd):
-	output = subprocess.check_output(cmd, stderr = subprocess.STDOUT)
-	print output
+    fastqs = [FASTQ(x) for x in fnames]
 
+    fastq_merge(fastqs, split_slashes)
 
-def run_piped_shell_process(cmd):
-	subprocess.call(cmd, shell=True)
-
-
-def interleaved(base_path,sample_key,temp_dir,trimo_path):
-	with open(sample_key) as infile:
-		sample_name = infile.next().strip()
-		reads = infile.next().strip()
-		rgid = infile.next().strip()
-		rgsm = infile.next().strip()
-		rgpl = infile.next().strip()
-		rglb = infile.next().strip()
-		paired_output1 = infile.next().strip()
-		paired_output2 = infile.next().strip()
-		unpaired_output1 = infile.next().strip()
-		unpaired_output2 = infile.next().strip()
-	print "Importing %s" % sample_name 
-	trim_log = "%s.trimlog" % sample_name
-	ca_trim_log = "%s.ca_trimlog" % sample_name
-	reads1 = "%s.1.fastq" % sample_name
-	reads2 = "%s.2.fastq" % sample_name
-	with cd(temp_dir):
-		print "Spliting %s reads file" % sample_name 
-		unmerge(reads, sample_name, gz=True)
-		print "Trimming %s reads" % sample_name 
-		cut_adapt_out1 = "ca_%s" % reads1
-		cut_adapt_out2 = "ca_%s" % reads2
-		run_piped_shell_process("%s -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTGACGCTGCCGACGA -g GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTCCGAGCCCACGAGAC -o %s -p %s %s %s > %s" % (cut_adapt_path, cut_adapt_out1, cut_adapt_out2, reads1, read2, ca_trim_log))
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",trimo_path,"PE","-phred33","-trimlog",trim_log,cut_adapt_out1,cut_adapt_out2,paired_output1,unpaired_output1,paired_output2,unpaired_output2,"LEADING:20","TRAILING:20","SLIDINGWINDOW:4:15","MINLEN:70"])
-		with gzip.open(sys.argv[2], 'w') as trimmed_merged:
-			fastqs = [FASTQ(x) for x in (paired_output1,paired_ooutput2)]
-			merge(fastqs, split_slashes=False, out=trimmed_merged, quiet=False)
-		os.remove(reads1)
-		os.remove(reads2)
-		os.remove(cut_adapt_out1)
-		os.remove(cut_adapt_out2)
-
-
-if __name__ == "__main__":
-	interleaved(base_path,sample_key,temp_dir,outdir)
+    for fq in fastqs:
+        fq.close()

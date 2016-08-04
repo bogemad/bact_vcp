@@ -4,8 +4,8 @@ import os, subprocess
 from contextlib import contextmanager
 
 base_path = os.path.dirname(os.path.realpath(__file__))
-sample_key = os.path.join(base_path,"keys",os.path.basename(sys.argv[1]))
-sample_name, ext = os.path.splitext(os.path.basename(sample_key))
+bam = sys.argv[1]
+sample_name, ext = os.path.splitext(os.path.basename(bam))
 outdir = os.path.join(base_path,"results")
 temp_dir = os.path.join(base_path,"intermediate_files")
 
@@ -29,19 +29,11 @@ def run_shell_process(cmd):
 	print output
 
 
-def call_variants(base_path,sample_name,temp_dir,outdir):
-	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
-	preprocessed_reads = "%s.gatk_preprocessed_reads.bam" % sample_name
-	bbiinput2 = "INPUT=%s" % preprocessed_reads
-	raw_variants = "%s.raw_variants.vcf" % sample_name
-	raw_snps = "%s.raw_snps.vcf" % sample_name
-	raw_indels = "%s.raw_indels.vcf" % sample_name
-	filtered_snps = "%s.filtered_snps.vcf" % sample_name
-	filtered_indels = "%s.filtered_indels.vcf" % sample_name
+def call_variants(base_path,sample_name,temp_dir,outdir,bam):
+	gatk_path = os.path.join(base_path,"bin/gatk/GenomeAnalysisTK.jar")
+	raw_variants = sys.argv[2]
 	with cd(temp_dir):
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","reference.fa","-I",preprocessed_reads,"--genotyping_mode","DISCOVERY","-glm","BOTH","-stand_call_conf","30","-stand_emit_conf","10","-o",raw_variants,"--sample_ploidy","1"])
-		shutil.copy(filtered_snps,os.path.join(outdir,sample_name))
-		shutil.copy(filtered_indels,os.path.join(outdir,sample_name))
+		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","reference.fa","-I",bam,"--genotyping_mode","DISCOVERY","-glm","BOTH","-stand_call_conf","30","-stand_emit_conf","10","-o",raw_variants,"--sample_ploidy","1"])
 
 
-call_variants(base_path,sample_name,temp_dir,outdir)
+call_variants(base_path,sample_name,temp_dir,outdir,bam)

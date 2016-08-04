@@ -1,0 +1,75 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+force=false
+keep=false
+help=false
+
+TEMP=`getopt -o q:fr:d:kho: --long fastq-table:,force-overwrite,reference-fasta:,reference-db:,keep-intermediate,help,output-directory: -n 'bact_vcp' -- "$@"`
+eval set -- "$TEMP"
+
+while true ; do
+    case "$1" in
+        -q | --fastq-table ) fastqs="$2"; shift 2 ;;
+        -f | --force-overwrite ) force=true; shift ;;
+        -r | --reference-fasta ) reffa="$2"; shift 2 ;;
+        -d | --reference-db ) refdb="$2"; shift 2 ;;
+        -k | --keep-intermediate ) keep=true; shift ;;
+        -h | --help ) help=true; shift ;;
+        -o | --output-directory ) out="$2"; shift 2 ;;
+        -- ) shift; break;;
+        * ) exit 1 ;;
+    esac
+done
+
+. $DIR/.venv/bin/activate
+
+if [ $help == true ]; then
+    echo "Another bacterial variant calling pipeline:       
+        -q | --fastq-table 
+            
+            A comma separated table containing fastq file locations 
+            and read group data (see input_file_list.csv for example).
+            
+        -f | --force-overwrite 
+            
+            Overwrite files in the output directories.
+         
+        -r | --reference-fasta
+            
+            Path to a reference fasta file
+            
+        -d | --reference-db
+            
+            Name of the reference database used by snpEff. This can
+            be found using the command:
+            
+            java -jar /path/to/snpEff.jar databases | grep <search term>
+            
+            Where <search term> is something used to identify the
+            correct genome. For example, the E. coli CFT073 reference
+            database can be found using:
+            
+            java -jar /path/to/snpEff.jar databases | grep cft
+            
+        -k | --keep-intermediate
+        
+            Intermediate files are deleted by default. This will move
+            them to a 'temp_files' dir in the designated output 
+            directory.
+        
+        -h | --help
+        
+            Prints this help output.
+            
+        -o | --output-directory
+        
+            Path to the output directory. A directory will be created if 
+            one does not exist.
+"
+exit 0
+fi
+
+echo "$DIR/scripts/bact_vcp.py $fastqs $force $reffa $refdb $keep $out"
+$DIR/scripts/bact_vcp.py $fastqs $force $reffa $refdb $keep $out
