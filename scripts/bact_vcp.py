@@ -351,7 +351,7 @@ def setup_directories_and_inputs(base_path, outdir, force):
 			os.mkdir(outdir)
 	elif force == 'true':
 		print "Beginning bact_vcp..."
-		print "Overwriting previous results."
+		print "Overwriting any previous results."
 		if os.path.isdir(outdir):
 			shutil.rmtree(outdir)
 		os.mkdir(outdir)
@@ -365,6 +365,7 @@ def import_file_list(file_list):
 	reads_list = []
 	with open(file_list) as file_handle:
 		for line in file_handle:
+			line = re.sub(r'^"#.*"',"",line) # fixes quotes that MS excel sometimes adds to csv files
 			if line.startswith("#") or line.startswith(",") or line == "\n":
 				continue
 			data = line.rstrip().split(',')
