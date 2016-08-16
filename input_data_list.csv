@@ -3,27 +3,24 @@
 #file_path: Absolute path to fastq files to be used. Best to use absolute file_paths (i.e. /complete/path/to/file) and not the ~ commonly used to designate the home directory,,,,
 #Read_group_identifier: Globally unique ID for each flowcell lane. Usually consists of {FLOWCELL_ID}.{LANE_NUMBER}. This data can be found in the fastq file header.  See https://en.wikipedia.org/wiki/FASTQ_format for more details.,,,,
 #Sample: Unique sample name. If you are using multiple fastq files that are of the same sample then use the same sample name.,,,,
-"#Platform_technology: Name of platform used for sequencing. Valid names include ILLUMINA, SOLID, LS454, HELICOS and PACBIO.",,,,
-"#DNA_preparation_library_identifier: Used to identify the library prep. E.g if you have multiple libaries generated from the same sample, you would include a single sample name but unique library names. If a single library has been sequenced multiple times then the same library and sample names must be used for each fastq generated.",,,,
-"#See http://gatkforums.broadinstitute.org/gatk/discussion/6472/read-groups for further explanation of the Read group identifier, Sample, Platform/technology, DNA preparation library identifier terms",,,,
-,,,,
-[read_files],,,,
+#Platform_technology: Name of platform used for sequencing. Valid names include ILLUMINA; SOLID; LS454; HELICOS; PACBIO.,,,,
+#DNA_preparation_library_identifier: Used to identify the library prep. E.g if you have multiple libaries generated from the same sample you would include a single sample name but unique library names. If a single library has been sequenced multiple times then the same library and sample names must be used for each fastq generated.,,,,
+#See http://gatkforums.broadinstitute.org/gatk/discussion/6472/read-groups for further explanation of the Read group identifier; Sample Platform/technology; and DNA preparation library identifier terms,,,,
+
 #file_path,Read_group_identifier,Sample,Platform_technology,DNA_preparation_library_identifier
-/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_13.lf.fastq,HA682ADXX.1,Ecoli_2010_13,ILLUMINA,lib_2016_08_01
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-,,,,
-[reference_fasta],,,,
-/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/parsnp/references/ST73_genomes/Escherichia_coli_CFT073_GCA_000007445.1.fna,,,,
-[snpEff_reference_database],,,,
-GCA_000007445.1.29,,,,
+/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_13.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_13,ILLUMINA,lb_Ecoli_2010_13
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_3.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_3,ILLUMINA,lb_Ecoli_2010_3
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_5.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_5,ILLUMINA,lb_Ecoli_2010_5
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_6.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_6,ILLUMINA,lb_Ecoli_2010_6
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_8.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_8,ILLUMINA,lb_Ecoli_2010_8
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_14.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_14,ILLUMINA,lb_Ecoli_2010_14
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_16.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_16,ILLUMINA,lb_Ecoli_2010_16
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_21.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_21,ILLUMINA,lb_Ecoli_2010_21
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_38.lf.fastq.gz,HA682ADXX.2,Ecoli_2010_38,ILLUMINA,lb_Ecoli_2010_38
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_44.lf.fastq.gz,HA682ADXX.2,Ecoli_2010_44,ILLUMINA,lb_Ecoli_2010_44
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_45.lf.fastq.gz,HA682ADXX.2,Ecoli_2010_45,ILLUMINA,lb_Ecoli_2010_45
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_64.lf.fastq.gz,HA682ADXX.2,Ecoli_2010_64,ILLUMINA,lb_Ecoli_2010_64
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_69.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_69,ILLUMINA,lb_Ecoli_2010_69
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_82.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_82,ILLUMINA,lb_Ecoli_2010_82
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_93.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_93,ILLUMINA,lb_Ecoli_2010_93
+#/home/ubuntu/T_orientalis_genome_data/Daniel/ecoli/ST73/ST73_reads/Ecoli_2010_98.lf.fastq.gz,HA682ADXX.1,Ecoli_2010_98,ILLUMINA,lb_Ecoli_2010_98

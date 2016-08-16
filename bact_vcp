@@ -5,23 +5,45 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 force=false
 keep=false
 help=false
+checkpoint=false
+threads=1
 
-TEMP=`getopt -o q:fr:d:kho: --long fastq-table:,force-overwrite,reference-fasta:,reference-db:,keep-intermediate,help,output-directory: -n 'bact_vcp' -- "$@"`
+
+TEMP=`getopt -o q:fr:kho:ct:: --long fastq-table:,force-overwrite,reference:,keep-intermediate,help,output-directory:,checkpoint-run,threads:: -n 'bact_vcp' -- "$@"`
 eval set -- "$TEMP"
 
 while true ; do
     case "$1" in
         -q | --fastq-table ) fastqs="$2"; shift 2 ;;
         -f | --force-overwrite ) force=true; shift ;;
-        -r | --reference-fasta ) reffa="$2"; shift 2 ;;
-        -d | --reference-db ) refdb="$2"; shift 2 ;;
+        -r | --reference ) ref="$2"; shift 2 ;;
         -k | --keep-intermediate ) keep=true; shift ;;
         -h | --help ) help=true; shift ;;
         -o | --output-directory ) out="$2"; shift 2 ;;
+        -c | --checkpoint-run ) checkpoint=true; shift ;; 
+        -t | --threads ) 
+            case "$2" in
+                "") threads=1; shift 2 ;;
+                *) threads="$2"; shift 2 ;;
+            esac ;;
         -- ) shift; break;;
         * ) exit 1 ;;
     esac
 done
+
+if [ fastqs == "" ]; then
+    echo "Required option: -q | --fastq-table not given."
+fi
+
+if [ ref == "" ]; then
+    echo "Required option: -r | --reference not given."
+fi
+
+if [ out == "" ]; then
+    echo "Required option: -o | --output-directory not given."
+fi
+
+
 
 . $DIR/.venv/bin/activate
 
@@ -36,22 +58,9 @@ if [ $help == true ]; then
             
             Overwrite files in the output directories.
          
-        -r | --reference-fasta
+        -r | --reference
             
-            Path to a reference fasta file
-            
-        -d | --reference-db
-            
-            Name of the reference database used by snpEff. This can
-            be found using the command:
-            
-            java -jar /path/to/snpEff.jar databases | grep <search term>
-            
-            Where <search term> is something used to identify the
-            correct genome. For example, the E. coli CFT073 reference
-            database can be found using:
-            
-            java -jar /path/to/snpEff.jar databases | grep cft
+            Path to a reference genbank file
             
         -k | --keep-intermediate
         
@@ -67,9 +76,29 @@ if [ $help == true ]; then
         
             Path to the output directory. A directory will be created if 
             one does not exist.
+            
+        -c | --checkpoint-run
+            
+            Run pipeline in staged manner, good to run if you have errors in your analysis
+            This makes checkpoints when parts of the pipeline are successful.
+            Retarts the pipeline from the last successful checkpoint. Note output-directory must
+            be exactly the same as the previous checkpointed run. Incompatible with -f.
+
+        -t | --threads
+
+            Number of threads to use for multiprocessing. Must be written without space between flag and value.
+            i.e. for 4 threads argument is -t4 NOT -t 4. Defaults to 1.
+
 "
 exit 0
 fi
 
-echo "$DIR/scripts/bact_vcp.py $fastqs $force $reffa $refdb $keep $out"
-$DIR/scripts/bact_vcp.py $fastqs $force $reffa $refdb $keep $out
+if [[ $checkpoint == true && $force == true ]]; then
+    echo "Error: -f | --force and -c | --checkpoint-run are incompatible. Remove one of these flags."
+    exit 1
+fi
+
+
+#echo "
+$DIR/scripts/bact_vcp.py $fastqs $force $ref $keep $out $checkpoint $threads
+#"
