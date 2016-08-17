@@ -45,7 +45,7 @@ gatk/GenomeAnalysisTK.jar:
 ${VENV}/bin/python:
 	wget -O mc.sh ${MC_LINK}
 	chmod 755 mc.sh && ./mc.sh -b -p ${MC}
-	${MC}/bin/conda create -y -n $venv python=2.7.11 pip numpy matplotlib biopython
+	${MC}/bin/conda create -y -n venv python=2.7.11 pip numpy matplotlib biopython
 	${VENV}/bin/pip install pyvcf cutadapt
 	rm -f mc.sh
 

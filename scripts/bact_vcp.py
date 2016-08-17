@@ -626,26 +626,24 @@ def run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed):
 
 
 #Counts number of snps in a 200 bp window across whole genome
-def count(args):
+def count_variants_and_plot(filtered_variants):
 	count_list = []
 	win_out = []
-	window = args.win
-	files = [line.split('\n')[0] for line in open(args.vcfs, 'r')]
-	for i, each in enumerate(files):
-		records = [record for record in vcf.Reader(open(each, 'r'))]
-		last_entry = records[-1].POS
-		snp_positions = numpy.zeros(last_entry+1, dtype=bool)
-		for record in records:
-			snp_positions[record.POS] = True
-		temp_counts = []
-		for n in xrange(0, last_entry, window):
-			count = numpy.count_nonzero(snp_positions[n:n+window])
-			temp_counts.append(count)
-			if i == 0:
-				win_out.append(n)
+	window = 1000
+	records = [record for record in vcf.Reader(open(filtered_variants, 'r'))]
+	last_entry = records[-1].POS
+	snp_positions = numpy.zeros(last_entry+1, dtype=bool)
+	for record in records:
+		snp_positions[record.POS] = True
+	temp_counts = []
+	for n in xrange(0, last_entry, window):
+		count = numpy.count_nonzero(snp_positions[n:n+window])
+		temp_counts.append(count)
 		if i == 0:
-			count_list.append(win_out)	
-		count_list.append(temp_counts)
+			win_out.append(n)
+	if i == 0:
+		count_list.append(win_out)	
+	count_list.append(temp_counts)
 
 	with open("snp_density.csv", "wb") as fh_out:
 		writer = csv.writer(fh_out)
@@ -683,7 +681,7 @@ def realign_indels(read_data,base_path,temp_dir,outdir,results_dedup_bam):
 	results_dir = os.path.join(outdir,sample_name)
 	dedup_bam = "%s.dedup_reads.bam" % sample_name
 	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
-	gatk_path = os.path.join(base_path,"bin/gatk/GenomeAnalysisTK.jar")
+	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
 	realign_intervals = "%s.target.intervals" % sample_name
 	preprocessed_reads = "%s.preprocessed_reads.bam" % sample_name
 	bbiinput = "INPUT=%s" % preprocessed_reads
@@ -705,33 +703,31 @@ def call_variants(read_data,base_path,temp_dir,outdir,results_preprocessed_reads
 	reads, rgid, sample_name, rgpl, rglb = read_data
 	results_dir = os.path.join(outdir,sample_name)
 	preprocessed_reads = "%s.preprocessed_reads.bam" % sample_name
-	gatk_path = os.path.join(base_path,"bin/gatk/GenomeAnalysisTK.jar")
+	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
 	raw_variants = "%s.raw_variants.vcf" % sample_name
 	with cd(temp_dir):
 		if os.path.isfile(preprocessed_reads) == False:
 			print "Preprocessed bam alignment file not found in temp directory. Copying from results directory."
 			shutil.copyfile(results_preprocessed_reads,preprocessed_reads)
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","reference.fa","-I",preprocessed_reads,"--genotyping_mode","DISCOVERY","-stand_call_conf","30","-stand_emit_conf","10","-o",raw_variants,"--sample_ploidy","1"])
+		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","reference.fa","-I",preprocessed_reads,"--genotyping_mode","DISCOVERY","-stand_call_conf","30","-stand_emit_conf","10","-ERC", "GVCF", "-o",raw_variants,"--sample_ploidy","1"])
 	shutil.copyfile(os.path.join(temp_dir,raw_variants),os.path.join(results_dir,raw_variants))
 
 
-def annotate_variants(read_data,base_path,temp_dir,outdir,results_raw_variants):
-	print "%s: First step filtering of variants" % read_data[2]
-	reads, rgid, sample_name, rgpl, rglb = read_data
-	results_dir = os.path.join(outdir,sample_name)
-	raw_variants = "%s.raw_variants.vcf" % sample_name
-	gatk_path = os.path.join(base_path,"bin/gatk/GenomeAnalysisTK.jar")
-	raw_snps = "%s.raw_snps.vcf" % sample_name
-	raw_indels = "%s.raw_indels.vcf" % sample_name
-	filtered_snps = "%s.filtered_snps.vcf" % sample_name
-	filtered_indels = "%s.filtered_indels.vcf" % sample_name
-	filtered_variants = "%s.filtered_variants.vcf" % sample_name
+def annotate_variants(base_path,temp_dir,outdir):
+	print "First step filtering of variants"
+	raw_variants = "raw_variants.vcf"
+	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
+	raw_snps = "raw_snps.vcf"
+	raw_indels = "raw_indels.vcf"
+	filtered_snps = "filtered_snps.vcf"
+	filtered_indels = "filtered_indels.vcf"
+	filtered_variants = "filtered_variants.vcf"
 	snpeff_path = os.path.join(base_path,"bin/snpEff/snpEff.jar")
-	annotated_variants = "%s.annotated_variants.vcf" % sample_name
+	annotated_variants = "annotated_variants.vcf"
 	with cd(temp_dir):
 		if os.path.isfile(raw_variants) == False:
 			print "Raw variants file not found in temp directory. Copying from results directory."
-			shutil.copyfile(results_raw_variants,raw_variants)
+			shutil.copyfile(os.path.join(outdir,raw_variants),raw_variants)
 		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","SelectVariants","-R","reference.fa","-V",raw_variants,"-selectType","SNP","-o",raw_snps])
 		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","SelectVariants","-R","reference.fa","-V",raw_variants,"-selectType","INDEL","-o",raw_indels])
 		cmd = 'java -Xmx2g -XX:+UseSerialGC -jar %s -T VariantFiltration -R reference.fa -V %s ' % (gatk_path,raw_snps)
@@ -749,23 +745,23 @@ def annotate_variants(read_data,base_path,temp_dir,outdir,results_raw_variants):
 		cmd += '--filterExpression "SOR > 10.0" --filterName "high_strand_odds_ratio" -o %s' % filtered_indels
 		run_shell_process(cmd)
 		print "%s: Annotating variants" % read_data[2]
-		run_process(["java", "-jar", "-Xmx2g", "-XX:+UseSerialGC", gatk_path, "-T", "CombineVariants", "-R", "reference.fa", "--variant:snp", filtered_snps, "--variant:indel", filtered_indels, "-o", filtered_variants, "-genotypeMergeOptions", "PRIORITIZE", "-priority", "snp,indel"])
+		run_process(["java", "-Xmx2g", "-XX:+UseSerialGC", "-jar", gatk_path, "-T", "CombineVariants", "-R", "reference.fa", "--variant:snp", filtered_snps, "--variant:indel", filtered_indels, "-o", filtered_variants, "-genotypeMergeOptions", "PRIORITIZE", "-priority", "snp,indel"])
 		run_piped_shell_process('java -Xmx2g -XX:+UseSerialGC -jar %s -v reference %s' % (snpeff_path,filtered_variants),annotated_variants)
-	shutil.copyfile(os.path.join(temp_dir,filtered_variants),os.path.join(results_dir,filtered_variants))
-	shutil.copyfile(os.path.join(temp_dir,annotated_variants),os.path.join(results_dir,annotated_variants))
+	shutil.copyfile(os.path.join(temp_dir,filtered_variants),os.path.join(outdir,filtered_variants))
+	shutil.copyfile(os.path.join(temp_dir,annotated_variants),os.path.join(outdir,annotated_variants))
 
 
 
 
 
 def run_pipeline(read_data,base_path,temp_dir,outdir):
+	filtered_variants_file = []
 	results_dir = os.path.join(outdir,read_data[2])
 	merged_trimmed = os.path.join(results_dir,"%s.trimmed.fastq.gz" % read_data[2])
 	bam = os.path.join(results_dir,"%s.raw_alignment.bam" % read_data[2])
 	dedup_bam = os.path.join(results_dir,"%s.dedup_reads.bam" % read_data[2])
 	preprocessed_reads = os.path.join(results_dir,"%s.preprocessed_reads.bam" % read_data[2])
 	raw_variants = os.path.join(results_dir,"%s.raw_variants.vcf" % read_data[2])
-	annotated_variants = os.path.join(results_dir,"%s.annotated_variants.vcf" % read_data[2])
 	if sys.argv[6] == 'true':
 		if os.path.exists(merged_trimmed) == False:
 			trim_reads(read_data,base_path,temp_dir,outdir)
@@ -777,15 +773,12 @@ def run_pipeline(read_data,base_path,temp_dir,outdir):
 			realign_indels(read_data,base_path,temp_dir,outdir,os.path.abspath(dedup_bam))
 		if os.path.exists(raw_variants) == False:
 			call_variants(read_data,base_path,temp_dir,outdir,os.path.abspath(preprocessed_reads))
-		if os.path.exists(annotated_variants) == False:
-			annotate_variants(read_data,base_path,temp_dir,outdir,os.path.abspath(raw_variants))
 	else:
 		trim_reads(read_data,base_path,temp_dir,outdir)
 		run_smalt(read_data,base_path,temp_dir,outdir,os.path.abspath(merged_trimmed))
 		dedup_reads(read_data, base_path,temp_dir,outdir,os.path.abspath(bam))
 		realign_indels(read_data,base_path,temp_dir,outdir,os.path.abspath(dedup_bam))
 		call_variants(read_data,base_path,temp_dir,outdir,os.path.abspath(preprocessed_reads))
-		annotate_variants(read_data,base_path,temp_dir,outdir,os.path.abspath(raw_variants))
 
 
 def multiprocessing(read_data):
@@ -793,6 +786,18 @@ def multiprocessing(read_data):
 	base_path = os.path.dirname(os.path.dirname(__file__))
 	temp_dir = os.path.join(base_path,"intermediate_files")
 	run_pipeline(read_data,base_path,temp_dir,outdir)
+
+def genotype_variants(reads_list,temp_dir,outdir):
+	variant_files = [os.path.join(outdir,x[2],"%s.raw_variants.vcf" % x[2] for x in reads_list]
+	cmd = ["java", "-Xmx2g", "-XX:+UseSerialGC", "-jar", gatk_path, "-T", "GenotypeGVCFs", "-R", "reference.fa"]
+	for raw_variants in variant_files:
+		cmd.append("--variant")
+		cmd.append(raw_variants)
+	cmd.append("-o")
+	cmd.append("raw_variants.vcf")
+	with cd(temp_dir):
+		run_process(cmd)
+	shutil.copy(os.path.join(temp_dir,"all.raw_variants.vcf"),outdir)
 
 
 base_path = os.path.dirname(os.path.dirname(__file__))
@@ -808,12 +813,14 @@ if __name__ == "__main__":
 	null_output = process_reference(base_path,ref_gb,temp_dir,outdir)
 	setup_snpEff(ref_gb,base_path,outdir)
 	try:
-		for read_data in reads_list:
-			multiprocessing(read_data)
-		# p = Pool(int(sys.argv[7]))
-		# p.map_async(multiprocessing,reads_list).get(9999999)
-		# p.close()
-		# p.join()
+		#for read_data in reads_list:
+			#multiprocessing(read_data)
+		p = Pool(int(sys.argv[7]))
+		p.map_async(multiprocessing,reads_list).get(9999999)
+		p.close()
+		p.join()
+		genotype_variants(reads_list,temp_dir,outdir)
+		annotate_variants(base_path,temp_dir,outdir)
 	except:
 		if sys.argv[6] == 'true':
 			print "Error!!! Saving temp files to checkpoint directory..."

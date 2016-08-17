@@ -45,7 +45,7 @@ fi
 
 
 
-. $DIR/.venv/bin/activate
+source $DIR/.mc/bin/activate venv
 
 if [ $help == true ]; then
     echo "Another bacterial variant calling pipeline:       
