@@ -1,308 +1,307 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, subprocess, collections, gzip, re, vcf, numpy, csv
+import os, sys, shutil, subprocess, collections, gzip, re, vcf, numpy, csv, shlex
 from Bio import SeqIO
-from eta import ETA
 from contextlib import contextmanager
 from multiprocessing import Pool
-
+import pdb
 
 
 class FASTQRead(collections.namedtuple('FASTQRead', 'name comment seq qual')):
-    @property
-    def fullname(self):
-        if self.comment:
-            return '%s %s' % (self.name, self.comment)
-        else:
-            return self.name
+	@property
+	def fullname(self):
+		if self.comment:
+			return '%s %s' % (self.name, self.comment)
+		else:
+			return self.name
 
-    def __repr__(self):
-        if self.comment:
-            return '@%s %s\n%s\n+\n%s\n' % (self.name, self.comment, self.seq, self.qual)
-        else:
-            return '@%s\n%s\n+\n%s\n' % (self.name, self.seq, self.qual)
+	def __repr__(self):
+		if self.comment:
+			return '@%s %s\n%s\n+\n%s\n' % (self.name, self.comment, self.seq, self.qual)
+		else:
+			return '@%s\n%s\n+\n%s\n' % (self.name, self.seq, self.qual)
 
-    def subseq(self, start, end, comment=None):
-        if self.comment:
-            comment = '%s %s' % (self.comment, comment)
+	def subseq(self, start, end, comment=None):
+		if self.comment:
+			comment = '%s %s' % (self.comment, comment)
 
-        return FASTQRead(self.name, comment, self.seq[start:end], self.qual[start:end])
+		return FASTQRead(self.name, comment, self.seq[start:end], self.qual[start:end])
 
-    def clone(self, name=None, comment=None, seq=None, qual=None):
-        n = name if name else self.name
-        c = comment if comment else self.comment
-        s = seq if seq else self.seq
-        q = qual if qual else self.qual
+	def clone(self, name=None, comment=None, seq=None, qual=None):
+		n = name if name else self.name
+		c = comment if comment else self.comment
+		s = seq if seq else self.seq
+		q = qual if qual else self.qual
 
-        return FASTQRead(n, c, s, q)
+		return FASTQRead(n, c, s, q)
 
-    def write(self, out):
-        out.write(repr(self))
+	def write(self, out):
+		out.write(repr(self))
 
 
 def fastq_read_file(fileobj):
-    name = fileobj.next().strip()[1:]
+	name = fileobj.next().strip()[1:]
 
-    spl = re.split(r'[ \t]', name, maxsplit=1)
-    name = spl[0]
-    if len(spl) > 1:
-        comment = spl[1]
-    else:
-        comment = ''
+	spl = re.split(r'[ \t]', name, maxsplit=1)
+	name = spl[0]
+	if len(spl) > 1:
+		comment = spl[1]
+	else:
+		comment = ''
 
-    seq = fileobj.next().strip()
-    fileobj.next()
-    qual = fileobj.next().strip()
+	seq = fileobj.next().strip()
+	fileobj.next()
+	qual = fileobj.next().strip()
 
-    return FASTQRead(name, comment, seq, qual)
+	return FASTQRead(name, comment, seq, qual)
 
 
 class FASTQ(object):
-    def __init__(self, fname=None, fileobj=None):
-        self.fname = fname
-        self._is_paired = None
-        self._is_colorspace = None
+	def __init__(self, fname=None, fileobj=None):
+		self.fname = fname
+		self._is_paired = None
+		self._is_colorspace = None
 
-        if fileobj:
-            self.fileobj = fileobj
-        elif fname:
-            if fname == '-':
-                self.fileobj = sys.stdin
-            elif fname[-3:] == '.gz' or fname[-4:] == '.bgz':
-                self.fileobj = gzip.open(os.path.expanduser(fname))
-            else:
-                self.fileobj = open(os.path.expanduser(fname))
-        else:
-            raise ValueError("Must pass either a fileobj or fname!")
+		if fileobj:
+			self.fileobj = fileobj
+		elif fname:
+			if fname == '-':
+				self.fileobj = sys.stdin
+			elif fname[-3:] == '.gz' or fname[-4:] == '.bgz':
+				self.fileobj = gzip.open(os.path.expanduser(fname))
+			else:
+				self.fileobj = open(os.path.expanduser(fname))
+		else:
+			raise ValueError("Must pass either a fileobj or fname!")
 
-    def tell(self):
-        # always relative to uncompressed...
-        return self.fileobj.tell()
+	def tell(self):
+		# always relative to uncompressed...
+		return self.fileobj.tell()
 
-    def seek(self, pos, whence=0):
-        self.fileobj.seek(pos, whence)
+	def seek(self, pos, whence=0):
+		self.fileobj.seek(pos, whence)
 
-    def fetch(self, quiet=False, callback=None):
-        # if self.fname and not quiet:
-            # eta = ETA(os.stat(self.fname).st_size, fileobj=self.fileobj)
-        # else:
-            # eta = None
+	def fetch(self, quiet=False, callback=None):
+		# if self.fname and not quiet:
+			# eta = ETA(os.stat(self.fname).st_size, fileobj=self.fileobj)
+		# else:
+			# eta = None
 
-        while True:
-            try:
-                read = fastq_read_file(self.fileobj)
-                # if eta:
-                    # if callback:
-                        # eta.print_status(extra=callback())
-                    # else:
-                        # eta.print_status(extra=read.name)
-                yield read
+		while True:
+			try:
+				read = fastq_read_file(self.fileobj)
+				# if eta:
+					# if callback:
+						# eta.print_status(extra=callback())
+					# else:
+						# eta.print_status(extra=read.name)
+				yield read
 
-            except StopIteration:
-                break
+			except StopIteration:
+				break
 
-        # if eta:
-            # eta.done()
+		# if eta:
+			# eta.done()
 
-    def close(self):
-        if self.fileobj != sys.stdout:
-            self.fileobj.close()
+	def close(self):
+		if self.fileobj != sys.stdout:
+			self.fileobj.close()
 
-    def check_qualtype(self, num_to_check=10000):
-        '''
-        Checks a FASTQ file's quality score to see what encoding/scaling is used:
-        Sanger, Solexa, or Illumina
+	def check_qualtype(self, num_to_check=10000):
+		'''
+		Checks a FASTQ file's quality score to see what encoding/scaling is used:
+		Sanger, Solexa, or Illumina
 
-        returns "Sanger", "Solexa", "Illumina", or "Unknown"
-        '''
+		returns "Sanger", "Solexa", "Illumina", or "Unknown"
+		'''
 
-        pos = self.tell()
+		pos = self.tell()
 
-        # these are the differential values, unscaled from chr()
-        sanger = (33, 74)  # default sanger is 0->40, but some newer illumina on this scale is 0->41
-        solexa = (59, 104)
-        illumina = (64, 104)
+		# these are the differential values, unscaled from chr()
+		sanger = (33, 74)  # default sanger is 0->40, but some newer illumina on this scale is 0->41
+		solexa = (59, 104)
+		illumina = (64, 104)
 
-        sanger_count = 0
-        solexa_count = 0
-        illumina_count = 0
-        unknown_count = 0
+		sanger_count = 0
+		solexa_count = 0
+		illumina_count = 0
+		unknown_count = 0
 
-        checked = 0
-        for read in self.fetch(quiet=True):
-            if checked > num_to_check:
-                break
-            qmax = None
-            qmin = None
-            for q in [ord(x) for x in read.qual]:
-                if qmin is None or q < qmin:
-                    qmin = q
-                if qmax is None or q > qmax:
-                    qmax = q
+		checked = 0
+		for read in self.fetch(quiet=True):
+			if checked > num_to_check:
+				break
+			qmax = None
+			qmin = None
+			for q in [ord(x) for x in read.qual]:
+				if qmin is None or q < qmin:
+					qmin = q
+				if qmax is None or q > qmax:
+					qmax = q
 
-            if sanger[0] <= qmin <= qmax <= sanger[1]:
-                sanger_count += 1
-            elif illumina[0] <= qmin <= qmax <= illumina[1]:
-                illumina_count += 1
-            elif solexa[0] <= qmin <= qmax <= solexa[1]:
-                solexa_count += 1
-            else:
-                unknown_count += 1
-            checked += 1
+			if sanger[0] <= qmin <= qmax <= sanger[1]:
+				sanger_count += 1
+			elif illumina[0] <= qmin <= qmax <= illumina[1]:
+				illumina_count += 1
+			elif solexa[0] <= qmin <= qmax <= solexa[1]:
+				solexa_count += 1
+			else:
+				unknown_count += 1
+			checked += 1
 
-        self.seek(pos)
+		self.seek(pos)
 
-        if unknown_count > 0:
-            return 'Unknown'  # We don't have any idea about at least one of these reads
+		if unknown_count > 0:
+			return 'Unknown'  # We don't have any idea about at least one of these reads
 
-        if solexa_count > 0:
-            # If there are any reads that fall in the Solexa range,
-            # this must be a Solexa scale file. This should be rare.
-            return 'Solexa'
+		if solexa_count > 0:
+			# If there are any reads that fall in the Solexa range,
+			# this must be a Solexa scale file. This should be rare.
+			return 'Solexa'
 
-        if sanger_count > illumina_count:
-            return 'Sanger'
-        return 'Illumina'
+		if sanger_count > illumina_count:
+			return 'Sanger'
+		return 'Illumina'
 
-    @property
-    def is_colorspace(self):
-        '''
-        This works by scanning the first 10 reads that have sequences (aren't Ns
-        or 4s). If there are any colorspace values, the entire file is called as
-        colorspace.
+	@property
+	def is_colorspace(self):
+		'''
+		This works by scanning the first 10 reads that have sequences (aren't Ns
+		or 4s). If there are any colorspace values, the entire file is called as
+		colorspace.
 
-        It's a bit overkill...
-        '''
+		It's a bit overkill...
+		'''
 
-        if self._is_colorspace is not None:
-            return self._is_colorspace
+		if self._is_colorspace is not None:
+			return self._is_colorspace
 
-        pos = self.tell()
-        self.seek(0)
-        self._is_colorspace = None
+		pos = self.tell()
+		self.seek(0)
+		self._is_colorspace = None
 
-        valid_basespace = "atcgATCG"
-        valid_colorspace = "0123456"
+		valid_basespace = "atcgATCG"
+		valid_colorspace = "0123456"
 
-        for read in self.fetch(quiet=True):
-            if len(read.seq) < 2:
-                continue
+		for read in self.fetch(quiet=True):
+			if len(read.seq) < 2:
+				continue
 
-            for base in read.seq[1:]:  # skip the first base, in case there is a linker prefix
-                if base in valid_colorspace:
-                    self._is_colorspace = True
-                    break
-                elif base in valid_basespace:
-                    self._is_colorspace = False
-                    break
-            if self._is_colorspace is not None:
-                break
+			for base in read.seq[1:]:  # skip the first base, in case there is a linker prefix
+				if base in valid_colorspace:
+					self._is_colorspace = True
+					break
+				elif base in valid_basespace:
+					self._is_colorspace = False
+					break
+			if self._is_colorspace is not None:
+				break
 
-        self.seek(pos)
-        return self._is_colorspace
+		self.seek(pos)
+		return self._is_colorspace
 
-    @property
-    def pair_count(self):
-        if self.is_paired:  # this actually does the calculation and is cached
-            return self._is_paired
-        return 1
+	@property
+	def pair_count(self):
+		if self.is_paired:  # this actually does the calculation and is cached
+			return self._is_paired
+		return 1
 
-    @property
-    def is_paired(self):
-        '''
-        Determines if a FASTQ file has paired reads. This returns True is the file has
-        paired reads with the same name in consecutive order.
-        '''
+	@property
+	def is_paired(self):
+		'''
+		Determines if a FASTQ file has paired reads. This returns True is the file has
+		paired reads with the same name in consecutive order.
+		'''
 
-        if self._is_paired is not None:
-            return (self._is_paired > 1)
+		if self._is_paired is not None:
+			return (self._is_paired > 1)
 
-        pos = self.tell()
-        self.seek(0)
-        last_name = None
-        count = 0
+		pos = self.tell()
+		self.seek(0)
+		last_name = None
+		count = 0
 
-        for read in self.fetch(quiet=True):
-            name = read.name.split()[0]
-            if last_name:
-                if name == last_name:
-                    count += 1
-                else:
-                    self._is_paired = count
-                    self.seek(pos)
+		for read in self.fetch(quiet=True):
+			name = read.name.split()[0]
+			if last_name:
+				if name == last_name:
+					count += 1
+				else:
+					self._is_paired = count
+					self.seek(pos)
 
-                    return (self._is_paired > 1)
-            else:
-                last_name = name
-                count = 1
+					return (self._is_paired > 1)
+			else:
+				last_name = name
+				count = 1
 
-        # if there are only 2 reads...
-        self._is_paired = count
-        self.seek(pos)
-        return (self._is_paired > 1)
+		# if there are only 2 reads...
+		self._is_paired = count
+		self.seek(pos)
+		return (self._is_paired > 1)
 
 
 def unmerge(combined_fname, out_template, gz=False):
-    outs = []
-    if gz:
-        outs.append(gzip.open('%s.1.fastq.gz' % out_template, 'w'))
-    else:
-        outs.append(open('%s.1.fastq' % out_template, 'w'))
+	outs = []
+	if gz:
+		outs.append(gzip.open('%s.1.fastq.gz' % out_template, 'w'))
+	else:
+		outs.append(open('%s.1.fastq' % out_template, 'w'))
 
-    outidx = 1
+	outidx = 1
 
-    last_read = None
-    fq = FASTQ(combined_fname)
-    for read in fq.fetch():
-        if last_read and last_read.name == read.name:
-            outidx += 1
-            if len(outs) < outidx:
-                if gz:
-                    outs.append(gzip.open('%s.%s.fastq.gz' % (out_template, outidx), 'w'))
-                else:
-                    outs.append(open('%s.%s.fastq' % (out_template, outidx), 'w'))
-            read.write(outs[outidx - 1])
-        else:
-            outidx = 1
-            read.write(outs[0])
+	last_read = None
+	fq = FASTQ(combined_fname)
+	for read in fq.fetch():
+		if last_read and last_read.name == read.name:
+			outidx += 1
+			if len(outs) < outidx:
+				if gz:
+					outs.append(gzip.open('%s.%s.fastq.gz' % (out_template, outidx), 'w'))
+				else:
+					outs.append(open('%s.%s.fastq' % (out_template, outidx), 'w'))
+			read.write(outs[outidx - 1])
+		else:
+			outidx = 1
+			read.write(outs[0])
 
-        last_read = read
+		last_read = read
 
-    fq.close()
-    for out in outs:
-        out.close()
+	fq.close()
+	for out in outs:
+		out.close()
 
 
 def generator_fetch(generators):
-    while True:
-        try:
-            yield [gen.next() for gen in generators]
-        except StopIteration:
-            return
+	while True:
+		try:
+			yield [gen.next() for gen in generators]
+		except StopIteration:
+			return
 
 
 def merge(fastqs, split_slashes=False, out=sys.stdout, quiet=False):
-    for reads in generator_fetch([fq.fetch(quiet=quiet if i == 0 else False) for i, fq in enumerate(fastqs)]):
-        cur_name = None
-        for read in reads:
-            name = read.name
-            comment = read.comment
+	for reads in generator_fetch([fq.fetch(quiet=quiet if i == 0 else False) for i, fq in enumerate(fastqs)]):
+		cur_name = None
+		for read in reads:
+			name = read.name
+			comment = read.comment
 
-            if split_slashes and '/' in name:
-                spl = name.split('/', 1)
-                name = spl[0]
-                if read.comment:
-                    comment = '/%s %s' % (spl[1], read.comment)
-                else:
-                    comment = '/%s' % spl[1]
+			if split_slashes and '/' in name:
+				spl = name.split('/', 1)
+				name = spl[0]
+				if read.comment:
+					comment = '/%s %s' % (spl[1], read.comment)
+				else:
+					comment = '/%s' % spl[1]
 
-            if not cur_name:
-                cur_name = name
-            else:
-                if name != cur_name:
-                    raise ValueError('Files are not paired! Expected: "%s", got "%s"!' % (cur_name, name))
+			if not cur_name:
+				cur_name = name
+			else:
+				if name != cur_name:
+					raise ValueError('Files are not paired! Expected: "%s", got "%s"!' % (cur_name, name))
 
-            read.clone(name=name, comment=comment).write(out)
+			read.clone(name=name, comment=comment).write(out)
 
 
 @contextmanager
@@ -315,101 +314,52 @@ def cd(newdir):
 		os.chdir(prevdir)
 
 
-def run_process(cmd):
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-	output, err = p.communicate()
-	if output:
-		print output
-	if err:
-		print err
-
-def run_shell_process(cmd):
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-	output, err = p.communicate()
-	if output:
-		print output
-	if err:
-		print err
+def replace_dir(dir):
+	if os.path.exists(dir):
+		shutil.rmtree(dir)
+	os.mkdir(dir)
 
 
-def run_piped_shell_process(cmd, outputfile):
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-	output, err = p.communicate()
-	with open(outputfile,'w') as output_handle:
-		output_handle.write(output)
-	if err:
-		print err
+def run_command(command, outputfile):
+	process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+	while True:
+		output = process.stdout.readline()
+		if output == '' and process.poll() is not None:
+			break
+		if output:
+			with open(outputfile,'a+') as outhandle:
+				outhandle.write(output)
+	rc = process.poll()
+	return rc
 
 
-def run_piped_shell_process_outerr(cmd, outputfile):
-	p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-	output, err = p.communicate()
-	with open(outputfile,'w') as output_handle:
-		output_handle.write(output)
-	if err:
-		print err
-
-
-
-# def checkpoint_passed(sample_name,checkpoint):
-	# temp_dir = os.path.join(base_path,"intermediate_files")
-	# check_path = os.path.join(temp_dir,".%s.checkpoint" % sample_name)
-	# with open(check_path,'w') as checkpoint_file:
-		# checkpoint_file.write(checkpoint)
-	# print "%s: %s checkpoint passed!" % (sample_name,checkpoint)
-
-
-# def checkpoint_check(sample_name):
-	# temp_dir = os.path.join(base_path,"intermediate_files")
-	# check_path = os.path.join(temp_dir,".%s.checkpoint" % sample_name)
-	# with open(check_path) as checkpoint_file:
-		# checkpoint = checkpoint_file.next()
-	# print "%s: Starting from %s checkpoint" % (sample_name,checkpoint)
-	# return checkpoint
+def run_shell_command(command, outputfile):
+	process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+	while True:
+		output = process.stdout.readline()
+		if output == '' and process.poll() is not None:
+			break
+		if output:
+			with open(outputfile,'a+') as outhandle:
+				outhandle.write(output)
+	rc = process.poll()
+	return rc
 
 
 def setup_directories_and_inputs(base_path, outdir):
 	temp_dir = os.path.join(base_path,"intermediate_files")
-	checkpoint_temp = os.path.join(base_path,"checkpoint_files")
-	outdir = os.path.abspath(outdir)
-	try:
-		if sys.argv[2] == 'false':
-			if sys.argv[6] == 'true':
-				print "Checkpoint run"
-				if os.path.isdir(outdir) == False:
-					os.mkdir(outdir)
-				if os.path.isdir(checkpoint_temp) == True:
-					print "Importing checkpoint directory"
-					os.rename(checkpoint_temp,temp_dir)
-				else:
-					if os.path.isdir(temp_dir) == True:
-						shutil.rmtree(temp_dir)
-					os.mkdir(temp_dir)
-				return outdir, temp_dir, checkpoint_temp
-			if os.path.isdir(outdir) and os.listdir(outdir) != []: #outdir exists, not empty, no force overwrite.
-				print "Previous results exist! Run with -f if you wish to overwrite previous results, of -c if you wish to run using checkpoints."
-				sys.exit(1)
-			elif os.path.isdir(outdir) and os.listdir(outdir) == []: #outdir exists, is empty.
-				if os.path.isdir(temp_dir) == True:
-					shutil.rmtree(temp_dir)
-				os.mkdir(temp_dir)
-				return outdir, temp_dir, checkpoint_temp
-			else:
-				os.mkdir(outdir)
-		elif sys.argv[2] == 'true':
-			print "Beginning bact_vcp..."
-			print "Overwriting any previous results."
-			if os.path.isdir(outdir):
-				shutil.rmtree(outdir)
+	replace_dir(temp_dir)
+	print "Beginning bact_vcp..."
+	if sys.argv[2] == 'true':
+		print "Overwriting any previous results."
+		replace_dir(outdir)
+	elif sys.argv[2] == 'false':
+		if os.path.isdir(outdir) == False:
+			print "No previous results found. Creating new results directory..."
 			os.mkdir(outdir)
-		if os.path.isdir(temp_dir) == True:
-			shutil.rmtree(temp_dir)
-		os.mkdir(temp_dir)
-		return outdir, temp_dir, checkpoint_temp
-	except:
-		shutil.rmtree(outdir)
-		os.rename(temp_dir,checkpoint_temp)
-		raise
+		else:
+			print "Previous results found. Adding to current analysis..."
+	return temp_dir
 
 
 def codon_table_lookup(ref_gb):
@@ -481,7 +431,7 @@ def setup_snpEff(ref_gb,base_path,outdir):
 		for rec in SeqIO.parse(ref_gb,"gb"):
 			outline = "reference.%s.codonTable : %s\n" % (rec.name,codon_table_names[rec.name])
 			snp_Eff_config_handle.write(outline)
-	run_piped_shell_process_outerr("java -jar %s build -genbank -v reference" % snpeff_path,outfile)
+	run_command(["java","-jar",snpeff_path,"build","-genbank","-v","reference"],outfile)
 
 
 def reset_snpEff(ref_gb,base_path):
@@ -508,44 +458,36 @@ def import_file_list(file_list,outdir):
 
 
 def process_reference(base_path,ref_gb,temp_dir,outdir):
-	try:
-		picard_path = os.path.join(base_path, "bin/picard-tools/picard.jar")
-		print "Importing reference sequence: %s" % os.path.basename(ref_gb)
-		ref_fasta = os.path.join(temp_dir,"reference.fa")
-		count = 0
-		with open(ref_gb) as original, open(ref_fasta, 'w') as corrected:
-			records = SeqIO.parse(original,"gb")
-			for record in records:
-				record.id = record.name
-				record.description = record.name
-				count += SeqIO.write(record,corrected,"fasta")
-		print "%s sequences written to new fasta file: reference.fa" % count
-		outfile = os.path.join(outdir,"Reference_processing_output.txt")
-		with cd(temp_dir):
-			if os.path.isfile("reference.dict"): os.remove("reference.dict")
-			print "Indexing referencing sequence for picard-tools:\n"
-			run_piped_shell_process_outerr("java -Xmx2g -XX:+UseSerialGC -jar %s CreateSequenceDictionary REFERENCE=reference.fa OUTPUT=reference.dict" % picard_path, outfile)
-			print "Indexing referencing sequence for smalt:\n"
-			run_piped_shell_process_outerr("smalt index -k 13 -s 8 reference reference.fa" % outfile)
-			print "Indexing referencing sequence for gatk:\n"
-			run_piped_shell_process_outerr("samtools faidx reference.fa" % outfile)
-		shutil.copy(os.path.join(temp_dir,"reference.fa"),os.path.join(outdir))
-	except:
-		shutil.rmtree(outdir)
-		shutil.rmtree(temp_dir)
-		raise
+	#try:
+	picard_path = os.path.join(base_path, "bin/picard-tools/picard.jar")
+	print "Importing reference sequence: %s" % os.path.basename(ref_gb)
+	ref_fasta = os.path.join(temp_dir,"reference.fa")
+	count = 0
+	with open(ref_gb) as original, open(ref_fasta, 'w') as corrected:
+		records = SeqIO.parse(original,"gb")
+		for record in records:
+			record.id = record.name
+			record.description = record.name
+			count += SeqIO.write(record,corrected,"fasta")
+	print "%s sequences written to new fasta file: reference.fa" % count
+	outfile = os.path.join(outdir,"Reference_processing_output.txt")
+	with cd(temp_dir):
+		if os.path.isfile("reference.dict"): os.remove("reference.dict")
+		print "Indexing reference sequences."
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"CreateSequenceDictionary","REFERENCE=reference.fa","OUTPUT=reference.dict"], outfile)
+		run_command(["smalt","index","-k","13","-s","8","reference","reference.fa"], outfile)
+		run_command(["samtools","faidx","reference.fa"], outfile)
+	shutil.copy(os.path.join(temp_dir,"reference.fa"),os.path.join(outdir))
+	#except:
+		#shutil.rmtree(outdir)
+		#shutil.rmtree(temp_dir)
+		#raise
 
 
-
-def trim_reads(read_data,base_path,temp_dir,outdir):
+def trim_reads(read_data,base_path,temp_dir,outdir,sample_temp_dir,log,results_dir):
 	trimo_path = os.path.join(base_path,"bin/trimmomatic/trimmomatic-0.36.jar")
-	cut_adapt_path = os.path.join(base_path,".venv/bin/cutadapt")
 	reads, rgid, sample_name, rgpl, rglb = read_data
-	if os.path.isfile(reads) == False:
-		print "Error: Supplied reads file does not exist!"
-		sys.exit(1)
-	results_dir = os.path.join(outdir,sample_name)
-	os.mkdir(results_dir)
+	replace_dir(sample_temp_dir)
 	paired_output1 = "%s.trimmed_paired1.fastq" % sample_name
 	paired_output2 = "%s.trimmed_paired2.fastq" % sample_name
 	unpaired_output1 = "%s.trimmed_unpaired1.fastq" % sample_name
@@ -555,162 +497,205 @@ def trim_reads(read_data,base_path,temp_dir,outdir):
 	trim_log = "%s.trimlog" % sample_name
 	reads1 = "%s.1.fastq" % sample_name
 	reads2 = "%s.2.fastq" % sample_name
-	ca_trim_log = "%s.ca_trimlog" % sample_name
-	with cd(temp_dir):
-		print "%s: Spliting reads file" % sample_name 
+	log = os.path.abspath("%s/%s.log" % (results_dir,sample_name))
+	with cd(sample_temp_dir):
+		print "%s: Processing reads file for trimming" % sample_name 
 		unmerge(reads, sample_name, gz=False)
 		print "%s: Trimming reads" % sample_name 
 		cut_adapt_out1 = "ca_%s" % reads1
 		cut_adapt_out2 = "ca_%s" % reads2
-		run_piped_shell_process("%s -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g AGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCT -g TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTGACGCTGCCGACGA -g GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG -a CTGTCTCTTATACACATCTCCGAGCCCACGAGAC -o %s -p %s %s %s" % (cut_adapt_path, cut_adapt_out1, cut_adapt_out2, reads1, reads2), ca_trim_log)
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",trimo_path,"PE","-phred33","-trimlog",trim_log,cut_adapt_out1,cut_adapt_out2,paired_output1,unpaired_output1,paired_output2,unpaired_output2,"LEADING:20","TRAILING:20","SLIDINGWINDOW:4:15","MINLEN:70"])
+		run_command(["cutadapt",
+		"-g","AGATGTGTATAAGAGACAG",
+		"-a","CTGTCTCTTATACACATCT",
+		"-g","AGATGTGTATAAGAGACAG",
+		"-a","CTGTCTCTTATACACATCT",
+		"-g","TCGTCGGCAGCGTCAGATGTGTATAAGAGACAG",
+		"-a","CTGTCTCTTATACACATCTGACGCTGCCGACGA",
+		"-g","GTCTCGTGGGCTCGGAGATGTGTATAAGAGACAG",
+		"-a","CTGTCTCTTATACACATCTCCGAGCCCACGAGAC",
+		"-o",cut_adapt_out1,"-p",cut_adapt_out2,
+		reads1, reads2],log)
+		run_command(["java",
+		"-Xmx2g","-XX:+UseSerialGC",
+		"-jar",trimo_path,"PE","-phred33",
+		"-threads","1",
+		"-trimlog",trim_log,
+		cut_adapt_out1,cut_adapt_out2,
+		paired_output1,unpaired_output1,
+		paired_output2,unpaired_output2,
+		"LEADING:20","TRAILING:20",
+		"SLIDINGWINDOW:4:15","MINLEN:70"],log)
 		print "%s: Merging trimmed reads" % sample_name
 		with gzip.open(merged_trimmed, 'wb') as trimmed_merged:
 			fastqs = [FASTQ(x) for x in (paired_output1,paired_output2)]
 			merge(fastqs, split_slashes=False, out=trimmed_merged, quiet=False)
-		os.remove(reads1)
-		os.remove(reads2)
-		os.remove(cut_adapt_out1)
-		os.remove(cut_adapt_out2)
-	shutil.copyfile(os.path.join(temp_dir,merged_trimmed),os.path.join(results_dir,merged_trimmed))
+	shutil.copy(os.path.join(sample_temp_dir,merged_trimmed),os.path.join(results_dir,merged_trimmed))
+	shutil.rmtree(sample_temp_dir)
+	print "%s: Read trimming complete. Saved to: %s" % (sample_name, os.path.join(results_dir,merged_trimmed))
 
 
-def sam_to_bam(sam,read_data,base_path):
+def sam_to_bam(sam,read_data,base_path,log):
 	reads, rgid, sample_name, rgpl, rglb = read_data
 	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
 	bam = "%s.raw_alignment.bam" % sample_name
 	pre_bam = "%s.raw_no_rg.bam" % sample_name
-	run_piped_shell_process("samtools view -bh -q 10 %s" % sam, pre_bam)
-	run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"AddOrReplaceReadGroups","I=%s" % pre_bam,"O=%s" % bam,"RGID=%s" % rgid,"RGSM=%s" % sample_name,"RGPL=%s" % rgpl.lower(),"RGLB=%s" % rglb,"RGPU=NA","SORT_ORDER=coordinate"])
+	run_command(["samtools", "view", "-bh", "-q", "10", sam], pre_bam)
+	run_command(["java",
+	"-Xmx2g","-XX:+UseSerialGC",
+	"-jar",picard_path,
+	"AddOrReplaceReadGroups",
+	"I=%s" % pre_bam,
+	"O=%s" % bam,
+	"RGID=%s" % rgid,
+	"RGSM=%s" % sample_name,
+	"RGPL=%s" % rgpl.lower(),
+	"RGLB=%s" % rglb,
+	"RGPU=NA",
+	"SORT_ORDER=coordinate"],log)
 	os.remove(sam)
 	os.remove(pre_bam)
-	alignment_quality_check(bam,picard_path,sample_name)
+	alignment_quality_check(bam,picard_path,sample_name,log)
 	return bam
 
 
-def alignment_quality_check(bam,picard_path,sample_name):
+def alignment_quality_check(bam,picard_path,sample_name,log):
 	stats_dir = "alignment_quality_stats"
 	os.mkdir(stats_dir)
 	prefix = os.path.join(os.path.abspath(stats_dir),sample_name)
-	run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"CollectGcBiasMetrics","R=reference.fa", "I=%s" % bam, "O=%s_GCBias.txt" % prefix, "CHART=%s_GCBias.pdf" % prefix, "ASSUME_SORTED=true"])
-	run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"MeanQualityByCycle","R=reference.fa", "I=%s" % bam, "O=%s_Qcycle.txt" % prefix, "CHART=%s_Qcycle.pdf" % prefix])
-	run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"QualityScoreDistribution","R=reference.fa", "I=%s" % bam, "O=%s_Qdist.txt" % prefix, "CHART=%s_Qdist.pdf" % prefix])
-	
+	print "%s: Generating alignment quality plots" % sample_name
+	run_command(["java",
+	"-Xmx2g","-XX:+UseSerialGC",
+	"-jar",picard_path,
+	"CollectGcBiasMetrics",
+	"R=reference.fa",
+	"I=%s" % bam,
+	"O=%s_GCBias.txt" % prefix,
+	"CHART=%s_GCBias.pdf" % prefix,
+	"S=%s_summary_metrics.txt" % prefix,
+	"ASSUME_SORTED=true"],log)
+	run_command(["java",
+	"-Xmx2g","-XX:+UseSerialGC",
+	"-jar",picard_path,
+	"MeanQualityByCycle",
+	"R=reference.fa",
+	"I=%s" % bam,
+	"O=%s_Qcycle.txt" % prefix,
+	"CHART=%s_Qcycle.pdf" % prefix],log)
+	run_command(["java",
+	"-Xmx2g","-XX:+UseSerialGC",
+	"-jar",picard_path,
+	"QualityScoreDistribution",
+	"R=reference.fa",
+	"I=%s" % bam,
+	"O=%s_Qdist.txt" % prefix,
+	"CHART=%s_Qdist.pdf" % prefix],log)
+	print "%s: Alignment quality plots complete. Saved to: %s" % (sample_name, os.path.abspath(stats_dir))
 
 
-
-
-def run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed):
+def run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed,sample_temp_dir,log,results_dir):
+	#pdb.set_trace()
 	reads, rgid, sample_name, rgpl, rglb = read_data
-	results_dir = os.path.join(outdir,sample_name)
+	replace_dir(sample_temp_dir)
 	reads1 = "%s.1.fastq" % sample_name
 	reads2 = "%s.2.fastq" % sample_name
-	with cd(temp_dir):
-		if os.path.isfile(reads1) == False or os.path.isfile(reads2) == False:
-			print "Reads file not found in temp directory. Copying from results directory."
-			if os.path.isfile(reads1) == True:
-				os.remove(reads1)
-			if os.path.isfile(reads2) == True:
-				os.remove(reads2)
-			unmerge(merged_trimmed, sample_name, gz=False)
+	with cd(sample_temp_dir):
 		print "%s: Processing reads for mapping" % sample_name
+		unmerge(merged_trimmed, sample_name, gz=False)
 		sam = "%s.sam" % sample_name
-		unmerge(reads, sample_name, gz=False)
 		print "%s: Mapping reads" % sample_name
-		run_process(["smalt","map","-i","1500","-n","1","-o",sam,"reference",reads1,reads2])
+		run_command(["smalt","map","-i","1500","-n","1","-o",sam,"../reference",reads1,reads2],log)
+		print "%s: Read mapping complete" % sample_name
 		print "%s: Generating raw alignment bam file" % sample_name
-		bam = sam_to_bam(sam,read_data,base_path)
-	shutil.move(os.path.join(temp_dir,"alignment_quality_stats"),os.path.join(results_dir))
-	shutil.copyfile(os.path.join(temp_dir,bam),os.path.join(results_dir,bam))
-
+		bam = sam_to_bam(sam,read_data,base_path,log)
+	shutil.copy(os.path.join(sample_temp_dir,"alignment_quality_stats"),os.path.join(results_dir))
+	shutil.copyfile(os.path.join(sample_temp_dir,bam),os.path.join(results_dir,bam))
+	shutil.rmtree(sample_temp_dir)
+	print "%s: Raw alignment bam file complete. Saved to: %s" % (sample_name, os.path.join(results_dir,bam))
 
 
 #Counts number of snps in a 200 bp window across whole genome
-def count_variants_and_plot(filtered_variants):
-	count_list = []
-	win_out = []
-	window = 1000
-	records = [record for record in vcf.Reader(open(filtered_variants, 'r'))]
-	last_entry = records[-1].POS
-	snp_positions = numpy.zeros(last_entry+1, dtype=bool)
-	for record in records:
-		snp_positions[record.POS] = True
-	temp_counts = []
-	for n in xrange(0, last_entry, window):
-		count = numpy.count_nonzero(snp_positions[n:n+window])
-		temp_counts.append(count)
-		if i == 0:
-			win_out.append(n)
-	if i == 0:
-		count_list.append(win_out)	
-	count_list.append(temp_counts)
+# def count_variants_and_plot(filtered_variants):
+	# count_list = []
+	# win_out = []
+	# window = 1000
+	# records = [record for record in vcf.Reader(open(filtered_variants, 'r'))]
+	# last_entry = records[-1].POS
+	# snp_positions = numpy.zeros(last_entry+1, dtype=bool)
+	# for record in records:
+		# snp_positions[record.POS] = True
+	# temp_counts = []
+	# for n in xrange(0, last_entry, window):
+		# count = numpy.count_nonzero(snp_positions[n:n+window])
+		# temp_counts.append(count)
+		# if i == 0:
+			# win_out.append(n)
+	# if i == 0:
+		# count_list.append(win_out)	
+	# count_list.append(temp_counts)
 
-	with open("snp_density.csv", "wb") as fh_out:
-		writer = csv.writer(fh_out)
-		files.insert(0, 'position')
-		writer.writerow(files)
-		writer.writerows(zip(*count_list))
-	
+	# with open("snp_density.csv", "wb") as fh_out:
+		# writer = csv.writer(fh_out)
+		# files.insert(0, 'position')
+		# writer.writerow(files)
+		# writer.writerows(zip(*count_list))
 
 
-def dedup_reads(read_data, base_path,temp_dir,outdir,results_bam):
+
+def process_bam(read_data, base_path,temp_dir,outdir,results_bam,sample_temp_dir,log,results_dir):
 	print "%s: Removing PCR duplicates" % read_data[2]
 	reads, rgid, sample_name, rgpl, rglb = read_data
-	results_dir = os.path.join(outdir,sample_name)
-	bam = os.path.join(temp_dir,"%s.raw_alignment.bam" % sample_name)
+	replace_dir(sample_temp_dir)
+	bam = os.path.join(sample_temp_dir,"%s.raw_alignment.bam" % sample_name)
 	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
+	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
 	dedup_bam = "%s.dedup_reads.bam" % sample_name
 	markd_input = "INPUT=%s" % bam
 	markd_output = "OUTPUT=%s" % dedup_bam
 	markd_metrics = "%s.picard_md_metrics.txt" % sample_name
 	markd_metrics_arg = "METRICS_FILE=%s" % markd_metrics
-	bbiinput = "INPUT=%s" % dedup_bam
-	with cd(temp_dir):
-		if os.path.isfile(bam) == False:
-			print "Bam alignment file not found in temp directory. Copying from results directory."
-			shutil.copyfile(results_bam,bam)
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"MarkDuplicates",markd_input,markd_output,markd_metrics_arg])
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",bbiinput])
-	shutil.copyfile(os.path.join(temp_dir,dedup_bam),os.path.join(results_dir,dedup_bam))
-	shutil.copyfile(os.path.join(temp_dir,markd_metrics),os.path.join(results_dir,markd_metrics))
-
-
-def realign_indels(read_data,base_path,temp_dir,outdir,results_dedup_bam):
-	print "%s: Realigning indel mutations" % read_data[2]
-	reads, rgid, sample_name, rgpl, rglb = read_data
-	results_dir = os.path.join(outdir,sample_name)
-	dedup_bam = "%s.dedup_reads.bam" % sample_name
-	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
-	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
 	realign_intervals = "%s.target.intervals" % sample_name
 	preprocessed_reads = "%s.preprocessed_reads.bam" % sample_name
-	bbiinput = "INPUT=%s" % preprocessed_reads
+	bbiinput = "INPUT=%s" % dedup_bam
 	cov_stats_name = "%s.coverage_stats" % sample_name
-	with cd(temp_dir):
-		if os.path.isfile(dedup_bam) == False:
-			print "Deduplicated bam alignment file not found in temp directory. Copying from results directory."
-			shutil.copyfile(results_dedup_bam,dedup_bam)
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","RealignerTargetCreator","-R","reference.fa","-I",dedup_bam,"-o",realign_intervals])
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","IndelRealigner","-R","reference.fa","-I",dedup_bam,"-targetIntervals",realign_intervals,"-o",preprocessed_reads])
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",bbiinput])
-		print "%s: Calculating depth of coverage statistics" % sample_name
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","DepthOfCoverage","-R","reference.fa","-o",cov_stats_name,"-I",preprocessed_reads,"-ct","5","-ct","10"])
-	shutil.copyfile(os.path.join(temp_dir,preprocessed_reads),os.path.join(results_dir,preprocessed_reads))
+	with cd(sample_temp_dir):
+		shutil.copyfile(results_bam,bam)
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",markd_input],log)
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"MarkDuplicates",markd_input,markd_output,markd_metrics_arg],log)
+		print "%s: PCR duplicates removed" % sample_name
+		print "%s: Realigning indels" % sample_name
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",bbiinput],log)
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","RealignerTargetCreator","-R","../reference.fa","-I",dedup_bam,"-o",realign_intervals],log)
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","IndelRealigner","-R","../reference.fa","-I",dedup_bam,"-targetIntervals",realign_intervals,"-o",preprocessed_reads],log)
+		print "%s: Indel realignment complete." % sample_name
+		print "%s: Processing of bam alignment complete. Saving to: %s" % (sample_name, os.path.join(results_dir,preprocessed_reads))
+		print "%s: Generating depth of coverage analysis" % sample_name
+		cov_stats_dir = "coverage_statistics"
+		os.mkdir(cov_stats_dir)
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","DepthOfCoverage","-R","../reference.fa","-o",os.path.join(cov_stats_dir,cov_stats_name),"-I",preprocessed_reads,"-ct","5","-ct","10"],log)
+		print "%s: Depth of coverage analysis complete. Saved to: %s" % (sample_name, os.path.join(results_dir,cov_stats_dir))
+	shutil.copytree(os.path.join(sample_temp_dir,cov_stats_dir),os.path.join(results_dir,cov_stats_dir))
+	shutil.copy(os.path.join(sample_temp_dir,markd_metrics),os.path.join(results_dir))
+	shutil.copy(os.path.join(sample_temp_dir,preprocessed_reads),os.path.join(results_dir))
+	shutil.rmtree(sample_temp_dir)
 
 
-def call_variants(read_data,base_path,temp_dir,outdir,results_preprocessed_reads):
+
+def call_variants(read_data,base_path,temp_dir,outdir,results_preprocessed_reads,sample_temp_dir,log,results_dir):
 	print "%s: Calling variants" % read_data[2]
 	reads, rgid, sample_name, rgpl, rglb = read_data
-	results_dir = os.path.join(outdir,sample_name)
+	replace_dir(sample_temp_dir)
 	preprocessed_reads = "%s.preprocessed_reads.bam" % sample_name
+	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
 	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
-	raw_variants = "%s.raw_variants.vcf" % sample_name
-	with cd(temp_dir):
-		if os.path.isfile(preprocessed_reads) == False:
-			print "Preprocessed bam alignment file not found in temp directory. Copying from results directory."
-			shutil.copyfile(results_preprocessed_reads,preprocessed_reads)
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","reference.fa","-I",preprocessed_reads,"--genotyping_mode","DISCOVERY","-stand_call_conf","30","-stand_emit_conf","10","-ERC", "GVCF", "-o",raw_variants,"--sample_ploidy","1"])
-	shutil.copyfile(os.path.join(temp_dir,raw_variants),os.path.join(results_dir,raw_variants))
+	raw_variants = "%s.raw_variants.g.vcf" % sample_name
+	bbiinput = "INPUT=%s" % preprocessed_reads
+	with cd(sample_temp_dir):
+		shutil.copyfile(results_preprocessed_reads,preprocessed_reads)
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",bbiinput],log)
+		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","../reference.fa","-I",preprocessed_reads,"--genotyping_mode","DISCOVERY","-stand_call_conf","30","-stand_emit_conf","10","-ERC", "GVCF", "-o",raw_variants,"--sample_ploidy","1"],log)
+	shutil.copyfile(os.path.join(sample_temp_dir,raw_variants),os.path.join(results_dir,raw_variants))
+	shutil.rmtree(sample_temp_dir)
+	print "%s: Variant calling complete. Raw variants vcf saved to: %s" % (sample_name, os.path.join(results_dir,raw_variants))
 
 
 def annotate_variants(base_path,temp_dir,outdir):
@@ -749,46 +734,49 @@ def annotate_variants(base_path,temp_dir,outdir):
 		run_piped_shell_process('java -Xmx2g -XX:+UseSerialGC -jar %s -v reference %s' % (snpeff_path,filtered_variants),annotated_variants)
 	shutil.copyfile(os.path.join(temp_dir,filtered_variants),os.path.join(outdir,filtered_variants))
 	shutil.copyfile(os.path.join(temp_dir,annotated_variants),os.path.join(outdir,annotated_variants))
-
+	print "Variant filtering complete. Combined vcf saved to: %s" % os.path.join(outdir,filtered_variants)
+	print "Variant annotation complete. Combined vcf saved to: %s" % os.path.join(outdir,annotated_variants)
 
 
 
 
 def run_pipeline(read_data,base_path,temp_dir,outdir):
-	filtered_variants_file = []
 	results_dir = os.path.join(outdir,read_data[2])
+	if os.path.exists(results_dir) == False:
+		os.mkdir(results_dir)
+	sample_temp_dir = os.path.join(temp_dir,read_data[2])
+	log = "%s/%s.log" % (results_dir,read_data[2])
 	merged_trimmed = os.path.join(results_dir,"%s.trimmed.fastq.gz" % read_data[2])
 	bam = os.path.join(results_dir,"%s.raw_alignment.bam" % read_data[2])
 	dedup_bam = os.path.join(results_dir,"%s.dedup_reads.bam" % read_data[2])
 	preprocessed_reads = os.path.join(results_dir,"%s.preprocessed_reads.bam" % read_data[2])
-	raw_variants = os.path.join(results_dir,"%s.raw_variants.vcf" % read_data[2])
-	if sys.argv[6] == 'true':
-		if os.path.exists(merged_trimmed) == False:
-			trim_reads(read_data,base_path,temp_dir,outdir)
-		if os.path.exists(bam) == False:
-			run_smalt(read_data,base_path,temp_dir,outdir,os.path.abspath(merged_trimmed))
-		if os.path.exists(dedup_bam) == False:
-			dedup_reads(read_data, base_path,temp_dir,outdir,os.path.abspath(bam))
-		if os.path.exists(preprocessed_reads) == False:
-			realign_indels(read_data,base_path,temp_dir,outdir,os.path.abspath(dedup_bam))
-		if os.path.exists(raw_variants) == False:
-			call_variants(read_data,base_path,temp_dir,outdir,os.path.abspath(preprocessed_reads))
-	else:
-		trim_reads(read_data,base_path,temp_dir,outdir)
-		run_smalt(read_data,base_path,temp_dir,outdir,os.path.abspath(merged_trimmed))
-		dedup_reads(read_data, base_path,temp_dir,outdir,os.path.abspath(bam))
-		realign_indels(read_data,base_path,temp_dir,outdir,os.path.abspath(dedup_bam))
-		call_variants(read_data,base_path,temp_dir,outdir,os.path.abspath(preprocessed_reads))
+	raw_variants = os.path.join(results_dir,"%s.raw_variants.g.vcf" % read_data[2])
+	if os.path.exists(merged_trimmed) == False:
+		trim_reads(read_data,base_path,temp_dir,outdir,sample_temp_dir,log,results_dir)
+		#print "trim_reads"
+		#sys.exit(0)
+	if os.path.exists(bam) == False:
+		run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed,sample_temp_dir,log,results_dir)
+		#print "run_smalt"
+		#sys.exit(0)
+	if os.path.exists(preprocessed_reads) == False:
+		process_bam(read_data,base_path,temp_dir,outdir,bam,sample_temp_dir,log,results_dir)
+	if os.path.exists(raw_variants) == False:
+		call_variants(read_data,base_path,temp_dir,outdir,preprocessed_reads,sample_temp_dir,log,results_dir)
 
 
 def multiprocessing(read_data):
-	outdir = sys.argv[5]
+	outdir = os.path.abspath(sys.argv[5])
 	base_path = os.path.dirname(os.path.dirname(__file__))
 	temp_dir = os.path.join(base_path,"intermediate_files")
 	run_pipeline(read_data,base_path,temp_dir,outdir)
 
 def genotype_variants(reads_list,temp_dir,outdir):
-	variant_files = [os.path.join(outdir,x[2],"%s.raw_variants.vcf" % x[2] for x in reads_list]
+	print "Merging raw variant files"
+	variant_files = []
+	for reads_data in reads_list:
+		raw_variants = "%s.raw_variants.g.vcf" % reads_data[2]
+		variant_files.append(os.path.join(outdir,reads_data[2],raw_variants))
 	cmd = ["java", "-Xmx2g", "-XX:+UseSerialGC", "-jar", gatk_path, "-T", "GenotypeGVCFs", "-R", "reference.fa"]
 	for raw_variants in variant_files:
 		cmd.append("--variant")
@@ -801,49 +789,35 @@ def genotype_variants(reads_list,temp_dir,outdir):
 
 
 base_path = os.path.dirname(os.path.dirname(__file__))
-file_list = sys.argv[1]
-ref_gb = sys.argv[3]
-outdir = sys.argv[5]
+file_list = os.path.abspath(sys.argv[1])
+ref_gb = os.path.abspath(sys.argv[3])
+outdir = os.path.abspath(sys.argv[5])
 
 
 
 if __name__ == "__main__":
-	outdir, temp_dir, checkpoint_temp = setup_directories_and_inputs(base_path, outdir)
+	temp_dir = setup_directories_and_inputs(base_path, outdir)
 	reads_list = import_file_list(file_list,outdir)
 	null_output = process_reference(base_path,ref_gb,temp_dir,outdir)
 	setup_snpEff(ref_gb,base_path,outdir)
 	try:
-		#for read_data in reads_list:
-			#multiprocessing(read_data)
+		# for read_data in reads_list:
+			# multiprocessing(read_data)
+			# break
 		p = Pool(int(sys.argv[7]))
 		p.map_async(multiprocessing,reads_list).get(9999999)
 		p.close()
 		p.join()
+		# print "Test run complete!"
+		# sys.exit(0)
 		genotype_variants(reads_list,temp_dir,outdir)
 		annotate_variants(base_path,temp_dir,outdir)
 	except:
-		if sys.argv[6] == 'true':
-			print "Error!!! Saving temp files to checkpoint directory..."
-			shutil.move(temp_dir,checkpoint_temp)
-		else:
-			if sys.argv[4] == 'true':
-				print "Error!!! Saving temp files to output directory as requested..."
-				shutil.move(temp_dir,os.path.join(outdir,"temp_files"))
-			else:
-				print "Error!!! Deleting temp files as requested..."
-				shutil.rmtree(temp_dir)
+		shutil.rmtree(temp_dir)
 		reset_snpEff(ref_gb,base_path)
 		raise
 	else:
-		if sys.argv[4] == 'true':
-			print "Run completed successfully. Saving temp files to output directory..."
-			if os.path.isdir(os.path.join(outdir,"temp_files")) == True:
-				print "Removing temp_files from previous successful run"
-				shutil.rmtree(os.path.join(outdir,"temp_files"))
-			shutil.move(temp_dir,os.path.join(outdir,"temp_files"))
-		elif sys.argv[4] == 'false':
-			print "Run completed successfully. Deleting temp files..."
-			shutil.rmtree(temp_dir)
+		shutil.rmtree(temp_dir)
 		reset_snpEff(ref_gb,base_path)
 		print "All jobs completed successfully."
 
