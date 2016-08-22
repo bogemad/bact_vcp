@@ -3,13 +3,12 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 force=false
-keep=false
 help=false
-checkpoint=false
+hpc=false
 threads=1
 
 
-TEMP=`getopt -o q:fr:kho:ct:: --long fastq-table:,force-overwrite,reference:,keep-intermediate,help,output-directory:,checkpoint-run,threads:: -n 'bact_vcp' -- "$@"`
+TEMP=`getopt -o q:fr:kho:ct:: --long fastq-table:,force-overwrite,reference:,help,output-directory:,hpc,threads:: -n 'bact_vcp' -- "$@"`
 eval set -- "$TEMP"
 
 while true ; do
@@ -17,10 +16,9 @@ while true ; do
         -q | --fastq-table ) fastqs="$2"; shift 2 ;;
         -f | --force-overwrite ) force=true; shift ;;
         -r | --reference ) ref="$2"; shift 2 ;;
-        -k | --keep-intermediate ) keep=true; shift ;;
         -h | --help ) help=true; shift ;;
         -o | --output-directory ) out="$2"; shift 2 ;;
-        -c | --checkpoint-run ) checkpoint=true; shift ;; 
+        -c | --hpc ) hpc=true; shift ;; 
         -t | --threads ) 
             case "$2" in
                 "") threads=1; shift 2 ;;
@@ -48,57 +46,27 @@ fi
 source $DIR/.mc/bin/activate venv
 
 if [ $help == true ]; then
-    echo "Another bacterial variant calling pipeline:       
-        -q | --fastq-table 
-            
-            A comma separated table containing fastq file locations 
-            and read group data (see input_file_list.csv for example).
-            
-        -f | --force-overwrite 
-            
-            Overwrite files in the output directories.
-         
-        -r | --reference
-            
-            Path to a reference genbank file
-            
-        -k | --keep-intermediate
-        
-            Intermediate files are deleted by default. This will move
-            them to a 'temp_files' dir in the designated output 
-            directory.
-        
-        -h | --help
-        
-            Prints this help output.
-            
-        -o | --output-directory
-        
-            Path to the output directory. A directory will be created if 
-            one does not exist.
-            
-        -c | --checkpoint-run
-            
-            Run pipeline in staged manner, good to run if you have errors in your analysis
-            This makes checkpoints when parts of the pipeline are successful.
-            Retarts the pipeline from the last successful checkpoint. Note output-directory must
-            be exactly the same as the previous checkpointed run. Incompatible with -f.
+    echo "Another bacterial variant calling pipeline:   
+-q | --fastq-table    A comma separated table containing fastq file locations and read group data (see input_file_list.csv for example).
 
-        -t | --threads
+-f | --force-overwrite    Overwrite files in the output directories.
+ 
+-r | --reference    Path to a reference genbank file
 
-            Number of threads to use for multiprocessing. Must be written without space between flag and value.
-            i.e. for 4 threads argument is -t4 NOT -t 4. Defaults to 1.
+-h | --help    Prints this help output.
+
+-o | --output-directory    Path to the output directory. A directory will be created if one does not exist.
+
+-c | --hpc    Run the pipeline using the HPC (PBS) queue system. This is more efficient if you are running the pipline on the UTS HPC.
+
+-t | --threads Number of threads to use for multiprocessing. Must be written without space between flag and value. i.e. for 4 threads argument is -t4 NOT -t 4. Defaults to 1. This is ignored if the -c|--hpc argument is flagged
 
 "
 exit 0
 fi
 
-if [[ $checkpoint == true && $force == true ]]; then
-    echo "Error: -f | --force and -c | --checkpoint-run are incompatible. Remove one of these flags."
-    exit 1
-fi
 
 
 #echo "
-$DIR/scripts/bact_vcp.py $fastqs $force $ref $keep $out $checkpoint $threads
+$DIR/scripts/bact_vcp.py $fastqs $force $ref $out $hpc $threads
 #"

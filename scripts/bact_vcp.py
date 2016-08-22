@@ -329,21 +329,23 @@ def run_command(command, outputfile):
 		if output:
 			with open(outputfile,'a+') as outhandle:
 				outhandle.write(output)
-	rc = process.poll()
-	return rc
+	if process.poll() == 1:
+		print "\n\n###########    Error    ###########\n\nThe following command failed to complete successfully:\n\n%s\n\nOutput of this error can be found in:\n\n%s\n\n" % (" ".join(command), outputfile)
+		sys.exit(1)
 
 
-def run_shell_command(command, outputfile):
-	process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-	while True:
-		output = process.stdout.readline()
-		if output == '' and process.poll() is not None:
-			break
-		if output:
-			with open(outputfile,'a+') as outhandle:
-				outhandle.write(output)
-	rc = process.poll()
-	return rc
+def run_po_command(command, outputfile, errorfile):
+	process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	output, error = stdout, stderr = process.communicate()
+	if output:
+		with open(outputfile,'w') as outhandle:
+			outhandle.write(output)
+	if error:
+		with open(errorfile,'a+') as errorhandle:
+			errorhandle.write(error)
+	if process.returncode == 1:
+		print "\n\n###########    Error    ###########\n\nThe following command failed to complete successfully:\n\n%s\n\nOutput of this error can be found in:\n\n%s\n\n" % (" ".join(command), errorfile)
+		sys.exit(1)
 
 
 def setup_directories_and_inputs(base_path, outdir):
@@ -458,7 +460,6 @@ def import_file_list(file_list,outdir):
 
 
 def process_reference(base_path,ref_gb,temp_dir,outdir):
-	#try:
 	picard_path = os.path.join(base_path, "bin/picard-tools/picard.jar")
 	print "Importing reference sequence: %s" % os.path.basename(ref_gb)
 	ref_fasta = os.path.join(temp_dir,"reference.fa")
@@ -478,10 +479,6 @@ def process_reference(base_path,ref_gb,temp_dir,outdir):
 		run_command(["smalt","index","-k","13","-s","8","reference","reference.fa"], outfile)
 		run_command(["samtools","faidx","reference.fa"], outfile)
 	shutil.copy(os.path.join(temp_dir,"reference.fa"),os.path.join(outdir))
-	#except:
-		#shutil.rmtree(outdir)
-		#shutil.rmtree(temp_dir)
-		#raise
 
 
 def trim_reads(read_data,base_path,temp_dir,outdir,sample_temp_dir,log,results_dir):
@@ -539,7 +536,7 @@ def sam_to_bam(sam,read_data,base_path,log):
 	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
 	bam = "%s.raw_alignment.bam" % sample_name
 	pre_bam = "%s.raw_no_rg.bam" % sample_name
-	run_command(["samtools", "view", "-bh", "-q", "10", sam], pre_bam)
+	run_po_command(["samtools", "view", "-bh", "-q", "10", sam], pre_bam, log)
 	run_command(["java",
 	"-Xmx2g","-XX:+UseSerialGC",
 	"-jar",picard_path,
@@ -567,7 +564,7 @@ def alignment_quality_check(bam,picard_path,sample_name,log):
 	"-Xmx2g","-XX:+UseSerialGC",
 	"-jar",picard_path,
 	"CollectGcBiasMetrics",
-	"R=reference.fa",
+	"R=../reference.fa",
 	"I=%s" % bam,
 	"O=%s_GCBias.txt" % prefix,
 	"CHART=%s_GCBias.pdf" % prefix,
@@ -577,7 +574,7 @@ def alignment_quality_check(bam,picard_path,sample_name,log):
 	"-Xmx2g","-XX:+UseSerialGC",
 	"-jar",picard_path,
 	"MeanQualityByCycle",
-	"R=reference.fa",
+	"R=../reference.fa",
 	"I=%s" % bam,
 	"O=%s_Qcycle.txt" % prefix,
 	"CHART=%s_Qcycle.pdf" % prefix],log)
@@ -585,7 +582,7 @@ def alignment_quality_check(bam,picard_path,sample_name,log):
 	"-Xmx2g","-XX:+UseSerialGC",
 	"-jar",picard_path,
 	"QualityScoreDistribution",
-	"R=reference.fa",
+	"R=../reference.fa",
 	"I=%s" % bam,
 	"O=%s_Qdist.txt" % prefix,
 	"CHART=%s_Qdist.pdf" % prefix],log)
@@ -607,7 +604,7 @@ def run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed,sample_temp_dir
 		print "%s: Read mapping complete" % sample_name
 		print "%s: Generating raw alignment bam file" % sample_name
 		bam = sam_to_bam(sam,read_data,base_path,log)
-	shutil.copy(os.path.join(sample_temp_dir,"alignment_quality_stats"),os.path.join(results_dir))
+	shutil.copytree(os.path.join(sample_temp_dir,"alignment_quality_stats"),os.path.join(results_dir,"alignment_quality_stats"))
 	shutil.copyfile(os.path.join(sample_temp_dir,bam),os.path.join(results_dir,bam))
 	shutil.rmtree(sample_temp_dir)
 	print "%s: Raw alignment bam file complete. Saved to: %s" % (sample_name, os.path.join(results_dir,bam))
@@ -667,12 +664,12 @@ def process_bam(read_data, base_path,temp_dir,outdir,results_bam,sample_temp_dir
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","RealignerTargetCreator","-R","../reference.fa","-I",dedup_bam,"-o",realign_intervals],log)
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","IndelRealigner","-R","../reference.fa","-I",dedup_bam,"-targetIntervals",realign_intervals,"-o",preprocessed_reads],log)
 		print "%s: Indel realignment complete." % sample_name
-		print "%s: Processing of bam alignment complete. Saving to: %s" % (sample_name, os.path.join(results_dir,preprocessed_reads))
 		print "%s: Generating depth of coverage analysis" % sample_name
 		cov_stats_dir = "coverage_statistics"
 		os.mkdir(cov_stats_dir)
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","DepthOfCoverage","-R","../reference.fa","-o",os.path.join(cov_stats_dir,cov_stats_name),"-I",preprocessed_reads,"-ct","5","-ct","10"],log)
 		print "%s: Depth of coverage analysis complete. Saved to: %s" % (sample_name, os.path.join(results_dir,cov_stats_dir))
+		print "%s: Processing of bam alignment complete. Saved to: %s" % (sample_name, os.path.join(results_dir,preprocessed_reads))
 	shutil.copytree(os.path.join(sample_temp_dir,cov_stats_dir),os.path.join(results_dir,cov_stats_dir))
 	shutil.copy(os.path.join(sample_temp_dir,markd_metrics),os.path.join(results_dir))
 	shutil.copy(os.path.join(sample_temp_dir,preprocessed_reads),os.path.join(results_dir))
@@ -709,29 +706,65 @@ def annotate_variants(base_path,temp_dir,outdir):
 	filtered_variants = "filtered_variants.vcf"
 	snpeff_path = os.path.join(base_path,"bin/snpEff/snpEff.jar")
 	annotated_variants = "annotated_variants.vcf"
+	log = "%s/variant_filtering_annotation.log" % (outdir)
 	with cd(temp_dir):
-		if os.path.isfile(raw_variants) == False:
-			print "Raw variants file not found in temp directory. Copying from results directory."
-			shutil.copyfile(os.path.join(outdir,raw_variants),raw_variants)
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","SelectVariants","-R","reference.fa","-V",raw_variants,"-selectType","SNP","-o",raw_snps])
-		run_process(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","SelectVariants","-R","reference.fa","-V",raw_variants,"-selectType","INDEL","-o",raw_indels])
-		cmd = 'java -Xmx2g -XX:+UseSerialGC -jar %s -T VariantFiltration -R reference.fa -V %s ' % (gatk_path,raw_snps)
-		cmd += '--filterExpression "QD < 2.0" --filterName "low_qual_by_depth" '
-		cmd += '--filterExpression "MQ < 40.0" --filterName "low_RMS_mapping_quality" '
-		cmd += '--filterExpression "FS > 60.0" --filterName "strand_bias" '
-		cmd += '--filterExpression "SOR > 3.0" --filterName "high_strand_odds_ratio" '
-		cmd += '--filterExpression "MQRankSum < -12.5" --filterName "low_MQRankSum" '
-		cmd += '--filterExpression "ReadPosRankSum < -8.0" --filterName "low_ReadPosRankSum" -o %s' % filtered_snps
-		run_shell_process(cmd)
-		cmd = 'java -Xmx2g -XX:+UseSerialGC -jar %s -T VariantFiltration -R reference.fa -V %s ' % (gatk_path,raw_indels)
-		cmd += '--filterExpression "QD < 2.0" --filterName "low_qual_by_depth" '
-		cmd += '--filterExpression "ReadPosRankSum < -20.0" --filterName "low_ReadPosRankSum" '
-		cmd += '--filterExpression "FS > 200.0" --filterName "strand_bias" '
-		cmd += '--filterExpression "SOR > 10.0" --filterName "high_strand_odds_ratio" -o %s' % filtered_indels
-		run_shell_process(cmd)
-		print "%s: Annotating variants" % read_data[2]
-		run_process(["java", "-Xmx2g", "-XX:+UseSerialGC", "-jar", gatk_path, "-T", "CombineVariants", "-R", "reference.fa", "--variant:snp", filtered_snps, "--variant:indel", filtered_indels, "-o", filtered_variants, "-genotypeMergeOptions", "PRIORITIZE", "-priority", "snp,indel"])
-		run_piped_shell_process('java -Xmx2g -XX:+UseSerialGC -jar %s -v reference %s' % (snpeff_path,filtered_variants),annotated_variants)
+		shutil.copyfile(os.path.join(outdir,raw_variants),raw_variants)
+		run_command(["java",
+		"-Xmx2g","-XX:+UseSerialGC",
+		"-jar",gatk_path,
+		"-T","SelectVariants",
+		"-R","reference.fa",
+		"-V",raw_variants,
+		"-selectType","SNP",
+		"-o",raw_snps],log)
+		run_command(["java",
+		"-Xmx2g","-XX:+UseSerialGC",
+		"-jar",gatk_path,
+		"-T","SelectVariants",
+		"-R","reference.fa",
+		"-V",raw_variants,
+		"-selectType","INDEL",
+		"-o",raw_indels],log)
+		run_command(['java',
+		'-Xmx2g', '-XX:+UseSerialGC',
+		'-jar', gatk_path,
+		'-T', 'VariantFiltration',
+		'-R', 'reference.fa',
+		'-V', raw_snps,
+		'--filterExpression', '"QD < 2.0"', '--filterName', '"low_qual_by_depth"',
+		'--filterExpression', '"MQ < 40.0"', '--filterName', '"low_RMS_mapping_quality"',
+		'--filterExpression', '"FS > 60.0"', '--filterName', '"strand_bias"',
+		'--filterExpression', '"SOR > 3.0"', '--filterName', '"high_strand_odds_ratio"',
+		'--filterExpression', '"MQRankSum < -12.5"', '--filterName', '"low_MQRankSum"',
+		'--filterExpression', '"ReadPosRankSum < -8.0"', '--filterName', '"low_ReadPosRankSum"',
+		'-o', filtered_snps], log)
+		run_command(['java', 
+		'-Xmx2g', '-XX:+UseSerialGC', 
+		'-jar', gatk_path,
+		'-T', 'VariantFiltration',
+		'-R', 'reference.fa',
+		'-V', raw_indels,
+		'--filterExpression', '"QD < 2.0"', '--filterName', '"low_qual_by_depth"',
+		'--filterExpression', '"ReadPosRankSum < -20.0"', '--filterName', '"low_ReadPosRankSum"',
+		'--filterExpression', '"FS > 200.0"', '--filterName', '"strand_bias"',
+		'--filterExpression', '"SOR > 10.0"', '--filterName', '"high_strand_odds_ratio"',
+		'-o', filtered_indels],log)
+		print "Annotating variants with snpEff"
+		run_command(["java", 
+		"-Xmx2g", "-XX:+UseSerialGC",
+		"-jar", gatk_path,
+		"-T", "CombineVariants",
+		"-R", "reference.fa",
+		"--variant:snp", filtered_snps,
+		"--variant:indel", filtered_indels,
+		"-o", filtered_variants,
+		"-genotypeMergeOptions", "PRIORITIZE",
+		"-priority", "snp,indel"], log)
+		run_po_command(['java',
+		'-Xmx2g', '-XX:+UseSerialGC',
+		'-jar', snpeff_path, 
+		'-v', 'reference',
+		filtered_variants], annotated_variants, log)
 	shutil.copyfile(os.path.join(temp_dir,filtered_variants),os.path.join(outdir,filtered_variants))
 	shutil.copyfile(os.path.join(temp_dir,annotated_variants),os.path.join(outdir,annotated_variants))
 	print "Variant filtering complete. Combined vcf saved to: %s" % os.path.join(outdir,filtered_variants)
@@ -753,12 +786,8 @@ def run_pipeline(read_data,base_path,temp_dir,outdir):
 	raw_variants = os.path.join(results_dir,"%s.raw_variants.g.vcf" % read_data[2])
 	if os.path.exists(merged_trimmed) == False:
 		trim_reads(read_data,base_path,temp_dir,outdir,sample_temp_dir,log,results_dir)
-		#print "trim_reads"
-		#sys.exit(0)
 	if os.path.exists(bam) == False:
 		run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed,sample_temp_dir,log,results_dir)
-		#print "run_smalt"
-		#sys.exit(0)
 	if os.path.exists(preprocessed_reads) == False:
 		process_bam(read_data,base_path,temp_dir,outdir,bam,sample_temp_dir,log,results_dir)
 	if os.path.exists(raw_variants) == False:
@@ -766,13 +795,16 @@ def run_pipeline(read_data,base_path,temp_dir,outdir):
 
 
 def multiprocessing(read_data):
-	outdir = os.path.abspath(sys.argv[5])
+	outdir = os.path.abspath(sys.argv[4])
 	base_path = os.path.dirname(os.path.dirname(__file__))
 	temp_dir = os.path.join(base_path,"intermediate_files")
 	run_pipeline(read_data,base_path,temp_dir,outdir)
 
-def genotype_variants(reads_list,temp_dir,outdir):
+
+def genotype_variants(reads_list,base_path,temp_dir,outdir):
 	print "Merging raw variant files"
+	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
+	log = "%s/variant_filtering_annotation.log" % (outdir)
 	variant_files = []
 	for reads_data in reads_list:
 		raw_variants = "%s.raw_variants.g.vcf" % reads_data[2]
@@ -784,14 +816,177 @@ def genotype_variants(reads_list,temp_dir,outdir):
 	cmd.append("-o")
 	cmd.append("raw_variants.vcf")
 	with cd(temp_dir):
-		run_process(cmd)
-	shutil.copy(os.path.join(temp_dir,"all.raw_variants.vcf"),outdir)
+		run_command(cmd, log)
+	shutil.copy(os.path.join(temp_dir,"raw_variants.vcf"),outdir)
+
+
+def skip_line(inhandle,outhandle):
+	line = infile.next()
+	outfile.write(line)
+
+
+def add_text_to_line(inhandle,outhandle,text):
+	line = infile.next().rstrip()
+	line += text
+	line += "\n"
+	outfile.write(line)
+
+
+
+
+def make_hpc_script(job, base_path, sample_data, job_number, sample_name):
+	script_dir = os.path.join(base_path,"scripts")
+	job_script_name = "hpc.%s.%s.sh" % (sample_name, job)
+	reads, rgid, rgpl, rglb, results_dir, sample_temp_dir, log, merged_trimmed, bam, dedup_bam, preprocessed_reads, raw_variants = sample_data
+	hpc_output = "%s.hpc_commandline_output.log" % job
+	hpc_error = "%s.hpc_commandline_error.log" % job
+	hpc_output_dir = os.path.join(results_dir,"commandline_output")
+	cmd = "$workdir/scripts/%s.py %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % (job, base_path, sample_name, reads, rgid, rgpl, rglb, results_dir, sample_temp_dir, log, merged_trimmed, bam, dedup_bam, preprocessed_reads, raw_variants)
+	if os.isdir(hpc_output_dir) == False:
+		os.mkdir(hpc_output_dir)
+	with open(os.path.join(script_dir,"hpc.job_script.sh") as script_template:
+		with open(os.path.join(script_dir,job_script_name)) as job_script:
+			skip_line(script_template,job_script)
+			add_text_to_line(script_template,job_script,"%s.%d" % (job, job_number))
+			skip_line(script_template,job_script)
+			skip_line(script_template,job_script)
+			skip_line(script_template,job_script)
+			skip_line(script_template,job_script)
+			add_text_to_line(script_template,job_script,os.path.join(hpc_output_dir,hpc_output))
+			add_text_to_line(script_template,job_script,os.path.join(hpc_output_dir,hpc_error))
+			skip_line(script_template,job_script)
+			add_text_to_line(script_template,job_script,sample_name)
+			add_text_to_line(script_template,job_script,job)
+			add_text_to_line(script_template,job_script,base_path)
+			skip_line(script_template,job_script)
+			skip_line(script_template,job_script)
+			skip_line(script_template,job_script)
+			skip_line(script_template,job_script)
+			add_text_to_line(script_template,job_script,os.path.join(hpc_output_dir,cmd))
+
+
+def run_hpc_script(base_path, sample_name, job):
+	job_script_name = "hpc.%s.%s.sh" % (sample_name, job)
+	script = os.path.join(base_path,"scripts",job_script_name)
+	run_command(["qsub",script])
+
+
+def hpc_trim_reads(base_path, numbered_sample_list, sample_data_dict):
+	for job_number, sample_name in numbered_sample_list:
+		sample_data = sample_data_dict[sample_name]
+		if os.path.exists(sample_data[7]) == False:
+			job = "trim_reads"
+			checkpoint_dict[sample_name] = job
+			make_hpc_script(job, base_path, sample_data, job_number, sample_name)
+			run_hpc_script(base_path, sample_name, job)
+		elif os.path.exists(sample_data[7]) == True:
+			checkpoint_dict[sample_name] = "trim_reads"
+
+
+
+def hpc_run_smalt(base_path, numbered_sample_list, sample_data_dict):
+	job_submitted_list = []
+	while True:
+		for job_number, sample_name in numbered_sample_list:
+			sample_data = sample_data_dict[sample_name]
+			if os.path.exists(sample_data[7]) == False:
+				continue
+			if os.path.exists(sample_data[8]) == False:
+				job = "run_smalt"
+				job_submitted_list.append(sample_name)
+				make_hpc_script(job, base_path, sample_data, job_number, sample_name)
+				run_hpc_script(base_path, sample_name, job)
+			elif os.path.exists(sample_data[8]) == True:
+				if sample_name in job_submitted_list == False:
+					job_submitted_list.append(sample_name)
+			if len(numbered_sample_list) == len(job_submitted_list):
+				return
+
+
+def hpc_preprocess_bam(base_path, numbered_sample_list, sample_data_dict):
+	job_submitted_list = []
+	while True:
+		for job_number, sample_name in numbered_sample_list:
+			sample_data = sample_data_dict[sample_name]
+			if os.path.exists(sample_data[8]) == False:
+				continue
+			if os.path.exists(sample_data[10]) == False:
+				job = "pre_bam"
+				job_submitted_list.append(sample_name)
+				make_hpc_script(job, base_path, sample_data, job_number, sample_name)
+				run_hpc_script(base_path, sample_name, job)
+			elif os.path.exists(sample_data[10]) == True:
+				if sample_name in job_submitted_list == False:
+					job_submitted_list.append(sample_name)
+			if len(numbered_sample_list) == len(job_submitted_list):
+				return
+
+
+def hpc_call_variants(base_path, numbered_sample_list, sample_data_dict):
+	job_submitted_list = []
+	while True:
+		for job_number, sample_name in numbered_sample_list:
+			sample_data = sample_data_dict[sample_name]
+			if os.path.exists(sample_data[10]) == False:
+				continue
+			if os.path.exists(sample_data[11]) == False:
+				job = "call_var"
+				job_submitted_list.append(sample_name)
+				make_hpc_script(job, base_path, sample_data, job_number, sample_name)
+				run_hpc_script(base_path, sample_name, job)
+			elif os.path.exists(sample_data[11]) == True:
+				if sample_name in job_submitted_list == False:
+					job_submitted_list.append(sample_name)
+			if len(numbered_sample_list) == len(job_submitted_list):
+				return
+
+
+def wait_for_jobs(numbered_sample_list, sample_data_dict):
+	job_completed_list = []
+	while True:
+		for job_number, sample_name in numbered_sample_list:
+			sample_data = sample_data_dict[sample_name]
+			if os.path.exists(sample_data[11]) == True:
+				if sample_name in job_submitted_list == False:
+					job_submitted_list.append(sample_name)
+			if len(numbered_sample_list) == len(job_submitted_list):
+				return
+
+
+def generate_sample_data_dict(read_list):
+	dict = {}
+	for read_data in read_list:
+		sample_name = read_data[2]
+		results_dir = os.path.join(outdir,sample_name)
+		if os.path.exists(results_dir) == False:
+			os.mkdir(results_dir)
+		sample_temp_dir = os.path.join(temp_dir,sample_name)
+		log = "%s/%s.log" % (results_dir,sample_name)
+		merged_trimmed = os.path.join(results_dir,"%s.trimmed.fastq.gz" % sample_name)
+		bam = os.path.join(results_dir,"%s.raw_alignment.bam" % sample_name)
+		dedup_bam = os.path.join(results_dir,"%s.dedup_reads.bam" % sample_name)
+		preprocessed_reads = os.path.join(results_dir,"%s.preprocessed_reads.bam" % sample_name)
+		raw_variants = os.path.join(results_dir,"%s.raw_variants.g.vcf" % sample_name)
+		dict[sample_name] = read_data[0], read_data[1], read_data[3], read_data[4], results_dir, sample_temp_dir, log, merged_trimmed, bam, dedup_bam, preprocessed_reads, raw_variants
+	return dict
+
+
+def run_pipeline_hpc(read_list,base_path,temp_dir,outdir):
+	sample_data_dict = generate_sample_data_dict(read_list)
+	numbered_sample_list = [job_number, sample_name for job_number, sample_name in enumerate(dict.keys(),start=1)]
+	hpc_trim_reads(base_path, numbered_sample_list, sample_data_dict)
+	hpc_run_smalt(base_path, numbered_sample_list, sample_data_dict)
+	hpc_preprocess_bam(base_path, numbered_sample_list, sample_data_dict)
+	hpc_call_variants(base_path, numbered_sample_list, sample_data_dict)
+	wait_for_jobs(numbered_sample_list, sample_data_dict)
+
+
 
 
 base_path = os.path.dirname(os.path.dirname(__file__))
 file_list = os.path.abspath(sys.argv[1])
 ref_gb = os.path.abspath(sys.argv[3])
-outdir = os.path.abspath(sys.argv[5])
+outdir = os.path.abspath(sys.argv[4])
 
 
 
@@ -801,17 +996,17 @@ if __name__ == "__main__":
 	null_output = process_reference(base_path,ref_gb,temp_dir,outdir)
 	setup_snpEff(ref_gb,base_path,outdir)
 	try:
-		# for read_data in reads_list:
-			# multiprocessing(read_data)
-			# break
-		p = Pool(int(sys.argv[7]))
-		p.map_async(multiprocessing,reads_list).get(9999999)
-		p.close()
-		p.join()
-		# print "Test run complete!"
-		# sys.exit(0)
-		genotype_variants(reads_list,temp_dir,outdir)
-		annotate_variants(base_path,temp_dir,outdir)
+		if sys.argv[5] == 'true':
+			run_pipeline_hpc(read_list,base_path,temp_dir,outdir)
+		if sys.argv[5] == 'false':
+			p = Pool(int(sys.argv[6]))
+			p.map_async(multiprocessing,reads_list).get(9999999)
+			p.close()
+			p.join()
+		if os.path.exists(os.path.join(outdir,"raw_variants.vcf")) == False:
+			genotype_variants(reads_list,base_path,temp_dir,outdir)
+		if os.path.exists(os.path.join(outdir,"annotated_variants.vcf")) == False:
+			annotate_variants(base_path,temp_dir,outdir)
 	except:
 		shutil.rmtree(temp_dir)
 		reset_snpEff(ref_gb,base_path)
