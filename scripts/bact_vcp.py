@@ -821,15 +821,15 @@ def genotype_variants(reads_list,base_path,temp_dir,outdir):
 
 
 def skip_line(inhandle,outhandle):
-	line = infile.next()
-	outfile.write(line)
+	line = inhandle.next()
+	outhandle.write(line)
 
 
 def add_text_to_line(inhandle,outhandle,text):
-	line = infile.next().rstrip()
+	line = inhandle.next().rstrip("\n")
 	line += text
 	line += "\n"
-	outfile.write(line)
+	outhandle.write(line)
 
 
 
@@ -838,14 +838,14 @@ def make_hpc_script(job, base_path, sample_data, job_number, sample_name):
 	script_dir = os.path.join(base_path,"scripts")
 	job_script_name = "hpc.%s.%s.sh" % (sample_name, job)
 	reads, rgid, rgpl, rglb, results_dir, sample_temp_dir, log, merged_trimmed, bam, dedup_bam, preprocessed_reads, raw_variants = sample_data
-	hpc_output = "%s.hpc_commandline_output.log" % job
-	hpc_error = "%s.hpc_commandline_error.log" % job
+	hpc_output = "%s.%s.hpc_commandline_output.log" % (job,sample_name)
+	hpc_error = "%s.%s.hpc_commandline_error.log" % (job,sample_name)
 	hpc_output_dir = os.path.join(results_dir,"commandline_output")
-	cmd = "$workdir/scripts/%s.py %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % (job, base_path, sample_name, reads, rgid, rgpl, rglb, results_dir, sample_temp_dir, log, merged_trimmed, bam, dedup_bam, preprocessed_reads, raw_variants)
-	if os.isdir(hpc_output_dir) == False:
+	cmd = '$workdir/scripts/%s.py %s %s %s %s %s %s %s %s %s %s %s %s %s %s' % (job, base_path, sample_name, reads, rgid, rgpl, rglb, results_dir, sample_temp_dir, log, merged_trimmed, bam, dedup_bam, preprocessed_reads, raw_variants)
+	if os.path.isdir(hpc_output_dir) == False:
 		os.mkdir(hpc_output_dir)
-	with open(os.path.join(script_dir,"hpc.job_script.sh") as script_template:
-		with open(os.path.join(script_dir,job_script_name)) as job_script:
+	with open(os.path.join(script_dir,"hpc.job_script.sh")) as script_template:
+		with open(os.path.join(script_dir,job_script_name),'w') as job_script:
 			skip_line(script_template,job_script)
 			add_text_to_line(script_template,job_script,"%s.%d" % (job, job_number))
 			skip_line(script_template,job_script)
@@ -862,7 +862,7 @@ def make_hpc_script(job, base_path, sample_data, job_number, sample_name):
 			skip_line(script_template,job_script)
 			skip_line(script_template,job_script)
 			skip_line(script_template,job_script)
-			add_text_to_line(script_template,job_script,os.path.join(hpc_output_dir,cmd))
+			add_text_to_line(script_template,job_script,cmd)
 
 
 def run_hpc_script(base_path, sample_name, job):
@@ -871,85 +871,71 @@ def run_hpc_script(base_path, sample_name, job):
 	run_command(["qsub",script])
 
 
-def hpc_trim_reads(base_path, numbered_sample_list, sample_data_dict):
-	for job_number, sample_name in numbered_sample_list:
+def del_hpc_script(base_path, sample_name, job):
+	script_dir = os.path.join(base_path,"scripts")
+	job_script_name = "hpc.%s.%s.sh" % (sample_name, job)
+	if os.path.isfile(os.path.join(script_dir,job_script_name)):
+		os.remove(os.path.join(script_dir,job_script_name))
+
+
+def hpc_multiprocessing(base_path, numbered_sample_list, sample_data_dict):
+	for job_number, sample_name in numbered_sample_list: #trim_reads loop
 		sample_data = sample_data_dict[sample_name]
-		if os.path.exists(sample_data[7]) == False:
+		if os.path.exists(sample_data[7]) == False: # if trimmed reads don't exist, start trim_reads
 			job = "trim_reads"
-			checkpoint_dict[sample_name] = job
 			make_hpc_script(job, base_path, sample_data, job_number, sample_name)
 			run_hpc_script(base_path, sample_name, job)
-		elif os.path.exists(sample_data[7]) == True:
-			checkpoint_dict[sample_name] = "trim_reads"
-
-
-
-def hpc_run_smalt(base_path, numbered_sample_list, sample_data_dict):
-	job_submitted_list = []
-	while True:
-		for job_number, sample_name in numbered_sample_list:
-			sample_data = sample_data_dict[sample_name]
-			if os.path.exists(sample_data[7]) == False:
-				continue
-			if os.path.exists(sample_data[8]) == False:
-				job = "run_smalt"
-				job_submitted_list.append(sample_name)
-				make_hpc_script(job, base_path, sample_data, job_number, sample_name)
-				run_hpc_script(base_path, sample_name, job)
-			elif os.path.exists(sample_data[8]) == True:
-				if sample_name in job_submitted_list == False:
-					job_submitted_list.append(sample_name)
-			if len(numbered_sample_list) == len(job_submitted_list):
-				return
-
-
-def hpc_preprocess_bam(base_path, numbered_sample_list, sample_data_dict):
-	job_submitted_list = []
-	while True:
-		for job_number, sample_name in numbered_sample_list:
-			sample_data = sample_data_dict[sample_name]
-			if os.path.exists(sample_data[8]) == False:
-				continue
-			if os.path.exists(sample_data[10]) == False:
-				job = "pre_bam"
-				job_submitted_list.append(sample_name)
-				make_hpc_script(job, base_path, sample_data, job_number, sample_name)
-				run_hpc_script(base_path, sample_name, job)
-			elif os.path.exists(sample_data[10]) == True:
-				if sample_name in job_submitted_list == False:
-					job_submitted_list.append(sample_name)
-			if len(numbered_sample_list) == len(job_submitted_list):
-				return
-
-
-def hpc_call_variants(base_path, numbered_sample_list, sample_data_dict):
-	job_submitted_list = []
-	while True:
-		for job_number, sample_name in numbered_sample_list:
-			sample_data = sample_data_dict[sample_name]
-			if os.path.exists(sample_data[10]) == False:
-				continue
-			if os.path.exists(sample_data[11]) == False:
-				job = "call_var"
-				job_submitted_list.append(sample_name)
-				make_hpc_script(job, base_path, sample_data, job_number, sample_name)
-				run_hpc_script(base_path, sample_name, job)
-			elif os.path.exists(sample_data[11]) == True:
-				if sample_name in job_submitted_list == False:
-					job_submitted_list.append(sample_name)
-			if len(numbered_sample_list) == len(job_submitted_list):
-				return
-
-
-def wait_for_jobs(numbered_sample_list, sample_data_dict):
+	smalt_submitted_list = []
+	bam_submitted_list = []
+	var_submitted_list = []
 	job_completed_list = []
 	while True:
-		for job_number, sample_name in numbered_sample_list:
+		for job_number, sample_name in numbered_sample_list: #run_smalt loop
 			sample_data = sample_data_dict[sample_name]
-			if os.path.exists(sample_data[11]) == True:
-				if sample_name in job_submitted_list == False:
-					job_submitted_list.append(sample_name)
-			if len(numbered_sample_list) == len(job_submitted_list):
+			if os.path.exists(sample_data[7]) == False: # if trimmed reads don't exist, don't do anything yet
+				continue
+			if sample_name not in smalt_submitted_list: #if script hasn't been submitted
+				if os.path.exists(sample_data[8]) == False: # if raw bam doesn't exist, start run_smalt
+					del_hpc_script(base_path, sample_name, "trim_reads")
+					job = "run_smalt"
+					smalt_submitted_list.append(sample_name)
+					make_hpc_script(job, base_path, sample_data, job_number, sample_name)
+					run_hpc_script(base_path, sample_name, job)
+				elif os.path.exists(sample_data[8]) == True: # if raw bam already exists, add to job submitted list
+					smalt_submitted_list.append(sample_name)
+		for job_number, sample_name in numbered_sample_list: #pre_bam loop
+			sample_data = sample_data_dict[sample_name]
+			if os.path.exists(sample_data[8]) == False:
+				continue
+			if sample_name not in bam_submitted_list: #if script hasn't been submitted
+				if os.path.exists(sample_data[10]) == False:
+					del_hpc_script(base_path, sample_name, "run_smalt")
+					job = "pre_bam"
+					bam_submitted_list.append(sample_name)
+					make_hpc_script(job, base_path, sample_data, job_number, sample_name)
+					run_hpc_script(base_path, sample_name, job)
+				elif os.path.exists(sample_data[10]) == True:
+					bam_submitted_list.append(sample_name)
+		for job_number, sample_name in numbered_sample_list: #call_var loop
+			sample_data = sample_data_dict[sample_name]
+			if os.path.exists(sample_data[10]) == False:
+				continue
+			if sample_name not in var_submitted_list: #if script hasn't been submitted
+				if os.path.exists(sample_data[11]) == False:
+					del_hpc_script(base_path, sample_name, "pre_bam")
+					job = "call_var"
+					var_submitted_list.append(sample_name)
+					make_hpc_script(job, base_path, sample_data, job_number, sample_name)
+					run_hpc_script(base_path, sample_name, job)
+				elif os.path.exists(sample_data[11]) == True:
+					var_submitted_list.append(sample_name)
+		for job_number, sample_name in numbered_sample_list: #wait for all call_var to finish loop
+			sample_data = sample_data_dict[sample_name]
+			if sample_name not in job_completed_list:
+				if os.path.exists(sample_data[11]) == True:
+					del_hpc_script(base_path, sample_name, "call_var")
+					job_completed_list.append(sample_name)
+			if len(numbered_sample_list) == len(job_completed_list):
 				return
 
 
@@ -971,16 +957,10 @@ def generate_sample_data_dict(read_list):
 	return dict
 
 
-def run_pipeline_hpc(read_list,base_path,temp_dir,outdir):
-	sample_data_dict = generate_sample_data_dict(read_list)
-	numbered_sample_list = [job_number, sample_name for job_number, sample_name in enumerate(dict.keys(),start=1)]
-	hpc_trim_reads(base_path, numbered_sample_list, sample_data_dict)
-	hpc_run_smalt(base_path, numbered_sample_list, sample_data_dict)
-	hpc_preprocess_bam(base_path, numbered_sample_list, sample_data_dict)
-	hpc_call_variants(base_path, numbered_sample_list, sample_data_dict)
-	wait_for_jobs(numbered_sample_list, sample_data_dict)
-
-
+def run_pipeline_hpc(reads_list,base_path,temp_dir,outdir):
+	sample_data_dict = generate_sample_data_dict(reads_list)
+	numbered_sample_list = [(job_number, sample_name) for (job_number, sample_name) in enumerate(sample_data_dict.keys(),start=1)]
+	hpc_multiprocessing(base_path, numbered_sample_list, sample_data_dict)
 
 
 base_path = os.path.dirname(os.path.dirname(__file__))
@@ -997,7 +977,7 @@ if __name__ == "__main__":
 	setup_snpEff(ref_gb,base_path,outdir)
 	try:
 		if sys.argv[5] == 'true':
-			run_pipeline_hpc(read_list,base_path,temp_dir,outdir)
+			run_pipeline_hpc(reads_list,base_path,temp_dir,outdir)
 		if sys.argv[5] == 'false':
 			p = Pool(int(sys.argv[6]))
 			p.map_async(multiprocessing,reads_list).get(9999999)
