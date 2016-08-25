@@ -9,10 +9,7 @@ function finish {
 }
 
 function install_bact_vcp {
-  cp -a $bact_vcp_path $workdir
-  export PATH=$workdir/.mc/bin:$PATH
-  source activate venv
+  export PATH=$bact_vcp_path/.mc/bin:$PATH
+  source activate $jobname
 }
-
-
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, subprocess, collections, gzip, re, vcf, numpy, csv, shlex
+import os, sys, shutil, subprocess, collections, gzip, re, numpy, csv, shlex
 from Bio import SeqIO
 from contextlib import contextmanager
 from multiprocessing import Pool
@@ -481,7 +481,25 @@ def process_reference(base_path,ref_gb,temp_dir,outdir):
 	shutil.copy(os.path.join(temp_dir,"reference.fa"),os.path.join(outdir))
 
 
-def trim_reads(read_data,base_path,temp_dir,outdir,sample_temp_dir,log,results_dir):
+def copy_to_results_dir(source, destination_dir):
+	hold_dir = os.path.join(destination_dir,".copy")
+	replace_dir(hold_dir)
+	if os.path.isdir(source):
+		shutil.copytree(source,os.path.join(hold_dir,os.path.basename(source)))
+		os.rename(os.path.join(hold_dir,os.path.basename(source)), os.path.join(destination_dir,os.path.basename(source)))
+		shutil.rmtree(hold_dir)
+	elif os.path.isfile(source):
+		shutil.copyfile(source,os.path.join(hold_dir,os.path.basename(source)))
+		os.rename(os.path.join(hold_dir,os.path.basename(source)), os.path.join(destination_dir,os.path.basename(source)))
+		shutil.rmtree(hold_dir)
+	else:
+		print "Error copying object: %s cannot determine if directory or file." % source
+		shutil.rmtree(hold_dir)
+		sys.exit(1)
+	
+
+
+def trim_reads(read_data,base_path,temp_dir,sample_temp_dir,log,results_dir):
 	trimo_path = os.path.join(base_path,"bin/trimmomatic/trimmomatic-0.36.jar")
 	reads, rgid, sample_name, rgpl, rglb = read_data
 	replace_dir(sample_temp_dir)
@@ -526,8 +544,7 @@ def trim_reads(read_data,base_path,temp_dir,outdir,sample_temp_dir,log,results_d
 		with gzip.open(merged_trimmed, 'wb') as trimmed_merged:
 			fastqs = [FASTQ(x) for x in (paired_output1,paired_output2)]
 			merge(fastqs, split_slashes=False, out=trimmed_merged, quiet=False)
-	shutil.copy(os.path.join(sample_temp_dir,merged_trimmed),os.path.join(results_dir,merged_trimmed))
-	shutil.rmtree(sample_temp_dir)
+	copy_to_results_dir(os.path.join(sample_temp_dir,merged_trimmed), results_dir)
 	print "%s: Read trimming complete. Saved to: %s" % (sample_name, os.path.join(results_dir,merged_trimmed))
 
 
@@ -589,8 +606,7 @@ def alignment_quality_check(bam,picard_path,sample_name,log):
 	print "%s: Alignment quality plots complete. Saved to: %s" % (sample_name, os.path.abspath(stats_dir))
 
 
-def run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed,sample_temp_dir,log,results_dir):
-	#pdb.set_trace()
+def run_smalt(read_data,base_path,temp_dir,merged_trimmed,sample_temp_dir,log,results_dir):
 	reads, rgid, sample_name, rgpl, rglb = read_data
 	replace_dir(sample_temp_dir)
 	reads1 = "%s.1.fastq" % sample_name
@@ -604,9 +620,8 @@ def run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed,sample_temp_dir
 		print "%s: Read mapping complete" % sample_name
 		print "%s: Generating raw alignment bam file" % sample_name
 		bam = sam_to_bam(sam,read_data,base_path,log)
-	shutil.copytree(os.path.join(sample_temp_dir,"alignment_quality_stats"),os.path.join(results_dir,"alignment_quality_stats"))
-	shutil.copyfile(os.path.join(sample_temp_dir,bam),os.path.join(results_dir,bam))
-	shutil.rmtree(sample_temp_dir)
+	copy_to_results_dir(os.path.join(sample_temp_dir,"alignment_quality_stats"), results_dir)
+	copy_to_results_dir(os.path.join(sample_temp_dir,bam), results_dir)
 	print "%s: Raw alignment bam file complete. Saved to: %s" % (sample_name, os.path.join(results_dir,bam))
 
 
@@ -638,7 +653,7 @@ def run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed,sample_temp_dir
 
 
 
-def process_bam(read_data, base_path,temp_dir,outdir,results_bam,sample_temp_dir,log,results_dir):
+def process_bam(read_data, base_path,temp_dir,results_bam,sample_temp_dir,log,results_dir):
 	print "%s: Removing PCR duplicates" % read_data[2]
 	reads, rgid, sample_name, rgpl, rglb = read_data
 	replace_dir(sample_temp_dir)
@@ -670,14 +685,13 @@ def process_bam(read_data, base_path,temp_dir,outdir,results_bam,sample_temp_dir
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","DepthOfCoverage","-R","../reference.fa","-o",os.path.join(cov_stats_dir,cov_stats_name),"-I",preprocessed_reads,"-ct","5","-ct","10"],log)
 		print "%s: Depth of coverage analysis complete. Saved to: %s" % (sample_name, os.path.join(results_dir,cov_stats_dir))
 		print "%s: Processing of bam alignment complete. Saved to: %s" % (sample_name, os.path.join(results_dir,preprocessed_reads))
-	shutil.copytree(os.path.join(sample_temp_dir,cov_stats_dir),os.path.join(results_dir,cov_stats_dir))
-	shutil.copy(os.path.join(sample_temp_dir,markd_metrics),os.path.join(results_dir))
-	shutil.copy(os.path.join(sample_temp_dir,preprocessed_reads),os.path.join(results_dir))
-	shutil.rmtree(sample_temp_dir)
+	copy_to_results_dir(os.path.join(sample_temp_dir,cov_stats_dir), results_dir)
+	copy_to_results_dir(os.path.join(sample_temp_dir,markd_metrics), results_dir)
+	copy_to_results_dir(os.path.join(sample_temp_dir,preprocessed_reads), results_dir)
 
 
 
-def call_variants(read_data,base_path,temp_dir,outdir,results_preprocessed_reads,sample_temp_dir,log,results_dir):
+def call_variants(read_data,base_path,temp_dir,results_preprocessed_reads,sample_temp_dir,log,results_dir):
 	print "%s: Calling variants" % read_data[2]
 	reads, rgid, sample_name, rgpl, rglb = read_data
 	replace_dir(sample_temp_dir)
@@ -690,8 +704,7 @@ def call_variants(read_data,base_path,temp_dir,outdir,results_preprocessed_reads
 		shutil.copyfile(results_preprocessed_reads,preprocessed_reads)
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",bbiinput],log)
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","../reference.fa","-I",preprocessed_reads,"--genotyping_mode","DISCOVERY","-stand_call_conf","30","-stand_emit_conf","10","-ERC", "GVCF", "-o",raw_variants,"--sample_ploidy","1"],log)
-	shutil.copyfile(os.path.join(sample_temp_dir,raw_variants),os.path.join(results_dir,raw_variants))
-	shutil.rmtree(sample_temp_dir)
+	copy_to_results_dir(os.path.join(sample_temp_dir,raw_variants), results_dir)
 	print "%s: Variant calling complete. Raw variants vcf saved to: %s" % (sample_name, os.path.join(results_dir,raw_variants))
 
 
@@ -765,8 +778,8 @@ def annotate_variants(base_path,temp_dir,outdir):
 		'-jar', snpeff_path, 
 		'-v', 'reference',
 		filtered_variants], annotated_variants, log)
-	shutil.copyfile(os.path.join(temp_dir,filtered_variants),os.path.join(outdir,filtered_variants))
-	shutil.copyfile(os.path.join(temp_dir,annotated_variants),os.path.join(outdir,annotated_variants))
+	copy_to_results_dir(os.path.join(temp_dir,filtered_variants), outdir)
+	copy_to_results_dir(os.path.join(temp_dir,annotated_variants), outdir)
 	print "Variant filtering complete. Combined vcf saved to: %s" % os.path.join(outdir,filtered_variants)
 	print "Variant annotation complete. Combined vcf saved to: %s" % os.path.join(outdir,annotated_variants)
 
@@ -785,13 +798,13 @@ def run_pipeline(read_data,base_path,temp_dir,outdir):
 	preprocessed_reads = os.path.join(results_dir,"%s.preprocessed_reads.bam" % read_data[2])
 	raw_variants = os.path.join(results_dir,"%s.raw_variants.g.vcf" % read_data[2])
 	if os.path.exists(merged_trimmed) == False:
-		trim_reads(read_data,base_path,temp_dir,outdir,sample_temp_dir,log,results_dir)
+		trim_reads(read_data,base_path,temp_dir,sample_temp_dir,log,results_dir)
 	if os.path.exists(bam) == False:
-		run_smalt(read_data,base_path,temp_dir,outdir,merged_trimmed,sample_temp_dir,log,results_dir)
+		run_smalt(read_data,base_path,temp_dir,merged_trimmed,sample_temp_dir,log,results_dir)
 	if os.path.exists(preprocessed_reads) == False:
-		process_bam(read_data,base_path,temp_dir,outdir,bam,sample_temp_dir,log,results_dir)
+		process_bam(read_data,base_path,temp_dir,bam,sample_temp_dir,log,results_dir)
 	if os.path.exists(raw_variants) == False:
-		call_variants(read_data,base_path,temp_dir,outdir,preprocessed_reads,sample_temp_dir,log,results_dir)
+		call_variants(read_data,base_path,temp_dir,preprocessed_reads,sample_temp_dir,log,results_dir)
 
 
 def multiprocessing(read_data):
@@ -841,7 +854,7 @@ def make_hpc_script(job, base_path, sample_data, job_number, sample_name):
 	hpc_output = "%s.%s.hpc_commandline_output.log" % (job,sample_name)
 	hpc_error = "%s.%s.hpc_commandline_error.log" % (job,sample_name)
 	hpc_output_dir = os.path.join(results_dir,"commandline_output")
-	cmd = '$workdir/scripts/%s.py %s %s %s %s %s %s %s %s %s %s %s %s %s %s' % (job, base_path, sample_name, reads, rgid, rgpl, rglb, results_dir, sample_temp_dir, log, merged_trimmed, bam, dedup_bam, preprocessed_reads, raw_variants)
+	cmd = '$bact_vcp_path/scripts/%s.py %s %s %s %s %s %s %s %s %s %s %s %s %s %s' % (job, base_path, sample_name, reads, rgid, rgpl, rglb, results_dir, sample_temp_dir, log, merged_trimmed, bam, dedup_bam, preprocessed_reads, raw_variants)
 	if os.path.isdir(hpc_output_dir) == False:
 		os.mkdir(hpc_output_dir)
 	with open(os.path.join(script_dir,"hpc.job_script.sh")) as script_template:
@@ -868,7 +881,7 @@ def make_hpc_script(job, base_path, sample_data, job_number, sample_name):
 def run_hpc_script(base_path, sample_name, job):
 	job_script_name = "hpc.%s.%s.sh" % (sample_name, job)
 	script = os.path.join(base_path,"scripts",job_script_name)
-	run_command(["qsub",script])
+	run_command(["qsub",script],"/dev/null")
 
 
 def del_hpc_script(base_path, sample_name, job):
@@ -878,9 +891,18 @@ def del_hpc_script(base_path, sample_name, job):
 		os.remove(os.path.join(script_dir,job_script_name))
 
 
+def multiprocessing_cleanup(sample_data_dict):
+	for sample_name in sample_data_dict.keys():
+		sample_data = sample_data_dict[sample_name]
+		shutil.rmtree(sample_data[5])
+		run_command(['conda', 'remove', '--name', sample_name, '--all'], sample_data[6])
+		run_command(['conda', 'remove', '--name', sample_name, '--all'], sample_data[6])
+
+
 def hpc_multiprocessing(base_path, numbered_sample_list, sample_data_dict):
 	for job_number, sample_name in numbered_sample_list: #trim_reads loop
 		sample_data = sample_data_dict[sample_name]
+		run_command(['conda','create','-n',sample_name,'--clone','venv'],sample_data[6])
 		if os.path.exists(sample_data[7]) == False: # if trimmed reads don't exist, start trim_reads
 			job = "trim_reads"
 			make_hpc_script(job, base_path, sample_data, job_number, sample_name)
@@ -936,10 +958,11 @@ def hpc_multiprocessing(base_path, numbered_sample_list, sample_data_dict):
 					del_hpc_script(base_path, sample_name, "call_var")
 					job_completed_list.append(sample_name)
 			if len(numbered_sample_list) == len(job_completed_list):
+				multiprocessing_cleanup(sample_data_dict)
 				return
 
 
-def generate_sample_data_dict(read_list):
+def generate_sample_data_dict(read_list, temp_dir):
 	dict = {}
 	for read_data in read_list:
 		sample_name = read_data[2]
@@ -958,19 +981,19 @@ def generate_sample_data_dict(read_list):
 
 
 def run_pipeline_hpc(reads_list,base_path,temp_dir,outdir):
-	sample_data_dict = generate_sample_data_dict(reads_list)
+	sample_data_dict = generate_sample_data_dict(reads_list, temp_dir)
 	numbered_sample_list = [(job_number, sample_name) for (job_number, sample_name) in enumerate(sample_data_dict.keys(),start=1)]
 	hpc_multiprocessing(base_path, numbered_sample_list, sample_data_dict)
 
 
-base_path = os.path.dirname(os.path.dirname(__file__))
-file_list = os.path.abspath(sys.argv[1])
-ref_gb = os.path.abspath(sys.argv[3])
-outdir = os.path.abspath(sys.argv[4])
 
 
 
 if __name__ == "__main__":
+	base_path = os.path.dirname(os.path.dirname(__file__))
+	file_list = os.path.abspath(sys.argv[1])
+	ref_gb = os.path.abspath(sys.argv[3])
+	outdir = os.path.abspath(sys.argv[4])
 	temp_dir = setup_directories_and_inputs(base_path, outdir)
 	reads_list = import_file_list(file_list,outdir)
 	null_output = process_reference(base_path,ref_gb,temp_dir,outdir)
