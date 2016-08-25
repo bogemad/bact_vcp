@@ -1,0 +1,72 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+force=false
+help=false
+hpc=false
+threads=1
+
+
+TEMP=`getopt -o q:fr:kho:ct:: --long fastq-table:,force-overwrite,reference:,help,output-directory:,hpc,threads:: -n 'bact_vcp' -- "$@"`
+eval set -- "$TEMP"
+
+while true ; do
+    case "$1" in
+        -q | --fastq-table ) fastqs="$2"; shift 2 ;;
+        -f | --force-overwrite ) force=true; shift ;;
+        -r | --reference ) ref="$2"; shift 2 ;;
+        -h | --help ) help=true; shift ;;
+        -o | --output-directory ) out="$2"; shift 2 ;;
+        -c | --hpc ) hpc=true; shift ;; 
+        -t | --threads ) 
+            case "$2" in
+                "") threads=1; shift 2 ;;
+                *) threads="$2"; shift 2 ;;
+            esac ;;
+        -- ) shift; break;;
+        * ) exit 1 ;;
+    esac
+done
+
+if [ fastqs == "" ]; then
+    echo "Required option: -q | --fastq-table not given."
+fi
+
+if [ ref == "" ]; then
+    echo "Required option: -r | --reference not given."
+fi
+
+if [ out == "" ]; then
+    echo "Required option: -o | --output-directory not given."
+fi
+
+
+
+source $DIR/.mc/bin/activate venv
+
+if [ $help == true ]; then
+    echo "Another bacterial variant calling pipeline:   
+-q | --fastq-table    A comma separated table containing fastq file locations and read group data (see input_file_list.csv for example).
+
+-f | --force-overwrite    Overwrite files in the output directories.
+ 
+-r | --reference    Path to a reference genbank file
+
+-h | --help    Prints this help output.
+
+-o | --output-directory    Path to the output directory. A directory will be created if one does not exist.
+
+-c | --hpc    Run the pipeline using the HPC (PBS) queue system. This is more efficient if you are running the pipline on the UTS HPC.
+
+-t | --threads Number of threads to use for multiprocessing. Must be written without space between flag and value. i.e. for 4 threads argument is -t4 NOT -t 4. Defaults to 1. This is ignored if the -c|--hpc argument is flagged
+
+"
+exit 0
+fi
+
+
+
+#echo "
+$DIR/scripts/bact_vcp.py $fastqs $force $ref $out $hpc $threads
+#"
