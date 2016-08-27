@@ -35,7 +35,7 @@ __check_defined = \
 all: gatk/GenomeAnalysisTK.jar ${VENV}/bin/python
 
 clean: 
-	rm -rf gatk ${MC} intermediate_files checkpoint_files scripts/mc.sh
+	rm -rf scripts/*.pyc gatk ${MC} intermediate_files checkpoint_files scripts/mc.sh
 
 .PHONY: all clean
 .SECONDARY:
