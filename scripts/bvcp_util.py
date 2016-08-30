@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from contextlib import contextmanager
-import os, shutil, subprocess, sys
+import os, shutil, subprocess, sys, re
 
 @contextmanager
 def cd(newdir):
@@ -75,3 +75,13 @@ def add_text_to_line(inhandle,outhandle,text):
 	line += "\n"
 	outhandle.write(line)
 
+
+def find_dir_with_version(key, parent):
+	for item in os.listdir(parent):
+		search_term = key + r'.*'
+		searchObj = re.search(search_term,item)
+		if searchObj:
+			dirname = searchObj.group(0)
+			return dirname
+	print "No directory found for key: %s" % key
+	sys.exit(1)

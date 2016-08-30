@@ -5,7 +5,6 @@ from bvcp_util import replace_dir, cd, copy_to_results_dir, run_command, run_po_
 from fastqutils import unmerge, merge, FASTQ
 
 def trim_reads(read_data,base_path,temp_dir,sample_temp_dir,log,results_dir):
-	trimo_path = os.path.join(base_path,"bin/trimmomatic/trimmomatic-0.36.jar")
 	reads, rgid, sample_name, rgpl, rglb, outdir = read_data
 	replace_dir(sample_temp_dir)
 	paired_output1 = "%s.trimmed_paired1.fastq" % sample_name
@@ -35,9 +34,9 @@ def trim_reads(read_data,base_path,temp_dir,sample_temp_dir,log,results_dir):
 		"-a","CTGTCTCTTATACACATCTCCGAGCCCACGAGAC",
 		"-o",cut_adapt_out1,"-p",cut_adapt_out2,
 		reads1, reads2],log)
-		run_command(["java",
+		run_command(["trimmomatic",
 		"-Xmx2g","-XX:+UseSerialGC",
-		"-jar",trimo_path,"PE","-phred33",
+		"PE","-phred33",
 		"-threads","1",
 		"-trimlog",trim_log,
 		cut_adapt_out1,cut_adapt_out2,
@@ -53,14 +52,13 @@ def trim_reads(read_data,base_path,temp_dir,sample_temp_dir,log,results_dir):
 	print "%s: Read trimming complete. Saved to: %s" % (sample_name, os.path.join(results_dir,merged_trimmed))
 
 
-def alignment_quality_check(bam,picard_path,sample_name,log):
+def alignment_quality_check(bam,sample_name,log):
 	stats_dir = "alignment_quality_stats"
 	os.mkdir(stats_dir)
 	prefix = os.path.join(os.path.abspath(stats_dir),sample_name)
 	print "%s: Generating alignment quality plots" % sample_name
-	run_command(["java",
+	run_command(["picard",
 	"-Xmx2g","-XX:+UseSerialGC",
-	"-jar",picard_path,
 	"CollectGcBiasMetrics",
 	"R=../reference.fa",
 	"I=%s" % bam,
@@ -68,17 +66,15 @@ def alignment_quality_check(bam,picard_path,sample_name,log):
 	"CHART=%s_GCBias.pdf" % prefix,
 	"S=%s_summary_metrics.txt" % prefix,
 	"ASSUME_SORTED=true"],log)
-	run_command(["java",
+	run_command(["picard",
 	"-Xmx2g","-XX:+UseSerialGC",
-	"-jar",picard_path,
 	"MeanQualityByCycle",
 	"R=../reference.fa",
 	"I=%s" % bam,
 	"O=%s_Qcycle.txt" % prefix,
 	"CHART=%s_Qcycle.pdf" % prefix],log)
-	run_command(["java",
+	run_command(["picard",
 	"-Xmx2g","-XX:+UseSerialGC",
-	"-jar",picard_path,
 	"QualityScoreDistribution",
 	"R=../reference.fa",
 	"I=%s" % bam,
@@ -90,13 +86,11 @@ def alignment_quality_check(bam,picard_path,sample_name,log):
 
 def sam_to_bam(sam,read_data,base_path,log):
 	reads, rgid, sample_name, rgpl, rglb, outdir = read_data
-	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
 	bam = "%s.raw_alignment.bam" % sample_name
 	pre_bam = "%s.raw_no_rg.bam" % sample_name
 	run_po_command(["samtools", "view", "-bh", "-q", "10", sam], pre_bam, log)
-	run_command(["java",
+	run_command(["picard",
 	"-Xmx2g","-XX:+UseSerialGC",
-	"-jar",picard_path,
 	"AddOrReplaceReadGroups",
 	"I=%s" % pre_bam,
 	"O=%s" % bam,
@@ -108,7 +102,7 @@ def sam_to_bam(sam,read_data,base_path,log):
 	"SORT_ORDER=coordinate"],log)
 	os.remove(sam)
 	os.remove(pre_bam)
-	alignment_quality_check(bam,picard_path,sample_name,log)
+	alignment_quality_check(bam,sample_name,log)
 	return bam
 
 
@@ -136,7 +130,6 @@ def process_bam(read_data, base_path,temp_dir,results_bam,sample_temp_dir,log,re
 	reads, rgid, sample_name, rgpl, rglb, outdir = read_data
 	replace_dir(sample_temp_dir)
 	bam = os.path.join(sample_temp_dir,"%s.raw_alignment.bam" % sample_name)
-	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
 	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
 	dedup_bam = "%s.dedup_reads.bam" % sample_name
 	markd_input = "INPUT=%s" % bam
@@ -149,11 +142,11 @@ def process_bam(read_data, base_path,temp_dir,results_bam,sample_temp_dir,log,re
 	cov_stats_name = "%s.coverage_stats" % sample_name
 	with cd(sample_temp_dir):
 		shutil.copyfile(results_bam,bam)
-		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",markd_input],log)
-		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"MarkDuplicates",markd_input,markd_output,markd_metrics_arg],log)
+		run_command(["picard","-Xmx2g","-XX:+UseSerialGC","BuildBamIndex",markd_input],log)
+		run_command(["picard","-Xmx2g","-XX:+UseSerialGC","MarkDuplicates",markd_input,markd_output,markd_metrics_arg],log)
 		print "%s: PCR duplicates removed" % sample_name
 		print "%s: Realigning indels" % sample_name
-		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",bbiinput],log)
+		run_command(["picard","-Xmx2g","-XX:+UseSerialGC","BuildBamIndex",bbiinput],log)
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","RealignerTargetCreator","-R","../reference.fa","-I",dedup_bam,"-o",realign_intervals],log)
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","IndelRealigner","-R","../reference.fa","-I",dedup_bam,"-targetIntervals",realign_intervals,"-o",preprocessed_reads],log)
 		print "%s: Indel realignment complete." % sample_name
@@ -173,13 +166,12 @@ def call_variants(read_data,base_path,temp_dir,results_preprocessed_reads,sample
 	reads, rgid, sample_name, rgpl, rglb, outdir = read_data
 	replace_dir(sample_temp_dir)
 	preprocessed_reads = "%s.preprocessed_reads.bam" % sample_name
-	picard_path = os.path.join(base_path,"bin/picard-tools/picard.jar")
 	gatk_path = os.path.join(base_path,"gatk/GenomeAnalysisTK.jar")
 	raw_variants = "%s.raw_variants.g.vcf" % sample_name
 	bbiinput = "INPUT=%s" % preprocessed_reads
 	with cd(sample_temp_dir):
 		shutil.copyfile(results_preprocessed_reads,preprocessed_reads)
-		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"BuildBamIndex",bbiinput],log)
+		run_command(["picard","-Xmx2g","-XX:+UseSerialGC","BuildBamIndex",bbiinput],log)
 		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",gatk_path,"-T","HaplotypeCaller","-R","../reference.fa","-I",preprocessed_reads,"--genotyping_mode","DISCOVERY","-stand_call_conf","30","-stand_emit_conf","10","-ERC", "GVCF", "-o",raw_variants,"--sample_ploidy","1"],log)
 	copy_to_results_dir(os.path.join(sample_temp_dir,raw_variants), results_dir)
 	print "%s: Variant calling complete. Raw variants vcf saved to: %s" % (sample_name, os.path.join(results_dir,raw_variants))
@@ -194,7 +186,6 @@ def annotate_variants(base_path,temp_dir,outdir):
 	filtered_snps = "filtered_snps.vcf"
 	filtered_indels = "filtered_indels.vcf"
 	filtered_variants = "filtered_variants.vcf"
-	snpeff_path = os.path.join(base_path,"bin/snpEff/snpEff.jar")
 	annotated_variants = "annotated_variants.vcf"
 	log = "%s/variant_filtering_annotation.log" % (outdir)
 	with cd(temp_dir):
@@ -250,9 +241,8 @@ def annotate_variants(base_path,temp_dir,outdir):
 		"-o", filtered_variants,
 		"-genotypeMergeOptions", "PRIORITIZE",
 		"-priority", "snp,indel"], log)
-		run_po_command(['java',
+		run_po_command(['snpEff',
 		'-Xmx2g', '-XX:+UseSerialGC',
-		'-jar', snpeff_path, 
 		'-v', 'reference',
 		filtered_variants], annotated_variants, log)
 	copy_to_results_dir(os.path.join(temp_dir,filtered_variants), outdir)

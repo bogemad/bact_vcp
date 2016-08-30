@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys, shutil, re
-from bvcp_util import replace_dir, run_command, cd
+from bvcp_util import replace_dir, run_command, cd, find_dir_with_version
 from Bio import SeqIO
 
 def setup_directories_and_inputs(base_path, outdir, force):
@@ -61,8 +61,7 @@ def codon_table_lookup(ref_gb):
 
 def setup_snpEff(ref_gb,base_path,outdir):
 	outfile = os.path.join(outdir,"Reference_processing_output.txt")
-	snpeff_path = os.path.join(base_path,"bin/snpEff/snpEff.jar")
-	snpeff_dir = os.path.join(base_path,"bin/snpEff")
+	snpeff_dir = os.path.join(os.path.join(base_path,".mc/envs/venv/share/"), find_dir_with_version("snpeff", os.path.join(base_path,".mc/envs/venv/share/")))
 	snpEff_config = os.path.join(snpeff_dir,"snpEff.config")
 	snpEff_config_backup = os.path.join(snpeff_dir,"snpEff.config.bak")
 	shutil.copyfile(snpEff_config,snpEff_config_backup)
@@ -89,11 +88,11 @@ def setup_snpEff(ref_gb,base_path,outdir):
 		for rec in SeqIO.parse(ref_gb,"gb"):
 			outline = "reference.%s.codonTable : %s\n" % (rec.name,codon_table_names[rec.name])
 			snp_Eff_config_handle.write(outline)
-	run_command(["java","-jar",snpeff_path,"build","-genbank","-v","reference"],outfile)
+	run_command(["snpEff","build","-genbank","-v","reference"],outfile)
 
 
 def reset_snpEff(ref_gb,base_path):
-	snpeff_dir = os.path.join(base_path,"bin/snpEff")
+	snpeff_dir = os.path.join(os.path.join(base_path,".mc/envs/venv/share/"), find_dir_with_version("snpeff", os.path.join(base_path,".mc/envs/venv/share/")))
 	snpEff_config = os.path.join(snpeff_dir,"snpEff.config")
 	snpEff_config_backup = os.path.join(snpeff_dir,"snpEff.config.bak")
 	data_dir = os.path.join(snpeff_dir,"data")
@@ -115,7 +114,6 @@ def import_file_list(file_list,outdir,temp_dir):
 
 
 def process_reference(base_path,ref_gb,temp_dir,outdir):
-	picard_path = os.path.join(base_path, "bin/picard-tools/picard.jar")
 	print "Importing reference sequence: %s" % os.path.basename(ref_gb)
 	ref_fasta = os.path.join(temp_dir,"reference.fa")
 	new_ref_gb = os.path.join(temp_dir,"reference.gbk")
@@ -134,7 +132,7 @@ def process_reference(base_path,ref_gb,temp_dir,outdir):
 	with cd(temp_dir):
 		if os.path.isfile("reference.dict"): os.remove("reference.dict")
 		print "Indexing reference sequences."
-		run_command(["java","-Xmx2g","-XX:+UseSerialGC","-jar",picard_path,"CreateSequenceDictionary","REFERENCE=reference.fa","OUTPUT=reference.dict"], outfile)
+		run_command(["picard","-Xmx2g","-XX:+UseSerialGC","CreateSequenceDictionary","REFERENCE=reference.fa","OUTPUT=reference.dict"], outfile)
 		run_command(["smalt","index","-k","13","-s","8","reference","reference.fa"], outfile)
 		run_command(["samtools","faidx","reference.fa"], outfile)
 	shutil.copy(os.path.join(temp_dir,"reference.fa"),os.path.join(outdir))

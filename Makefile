@@ -35,7 +35,7 @@ __check_defined = \
 all: gatk/GenomeAnalysisTK.jar ${VENV}/bin/python
 
 clean: 
-	rm -rf scripts/*.pyc gatk ${MC} intermediate_files checkpoint_files scripts/mc.sh
+	rm -rf scripts/*.pyc gatk ${MC} intermediate_files bin/picard-tools scripts/mc.sh
 
 .PHONY: all clean
 .SECONDARY:
@@ -53,5 +53,7 @@ ${VENV}/bin/python:
 	scripts/mc.sh -b -p ${MC}
 	${MC}/bin/conda config --add channels r
 	${MC}/bin/conda config --add channels bioconda 
-	${MC}/bin/conda create -y -n venv python=2.7.11 pip zlib numpy matplotlib biopython psutil smalt samtools java-jdk cutadapt pyvcf
+	${MC}/bin/conda create -y -n venv python=2.7.11 pip zlib numpy matplotlib biopython psutil smalt samtools java-jdk cutadapt pyvcf snpeff trimmomatic picard
 	rm -fr scripts/mc.sh
+
+
