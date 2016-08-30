@@ -51,8 +51,7 @@ ${VENV}/bin/python:
 	wget -O - ${MC_LINK} > scripts/mc.sh 
 	chmod 755 -R hpc.data.list.csv scripts
 	scripts/mc.sh -b -p ${MC}
-	conda config --add channels r
-	conda config --add channels bioconda
-	${MC}/bin/conda create -y -n venv python=2.7.11 pip zlib numpy matplotlib biopython psutil smalt samtools
-	${VENV}/bin/pip install cutadapt pyvcf
+	${MC}/bin/conda config --add channels r
+	${MC}/bin/conda config --add channels bioconda 
+	${MC}/bin/conda create -y -n venv python=2.7.11 pip zlib numpy matplotlib biopython psutil smalt samtools java-jdk cutadapt pyvcf
 	rm -fr scripts/mc.sh
